@@ -301,12 +301,13 @@ export function useLiveTranslator() {
               if (isSpeakerActive) {
                 // Adaptive separation threshold based on estimated acoustic coupling factor.
                 // Typical device speaker-to-mic feedback leak is roughly 25%-40% of standard output.
-                const suppressionThreshold = (smoothedSpeakerRmsRef.current * 0.38) + 0.012;
+                const suppressionThreshold = (smoothedSpeakerRmsRef.current * 0.42) + 0.015;
                 
                 if (micRms < suppressionThreshold) {
                   isEchoSuppressed = true;
+                  // Soft suppression: Attenuate loop leak while preserving some ambient context for model grounding
                   for (let i = 0; i < channelData.length; i++) {
-                    channelData[i] *= 0.002; // Attenuate audio loop leak by ~54dB (pristine digital separation)
+                    channelData[i] *= 0.045; // ~27dB suppression (enough to prevent echo feedback loop while being more robust)
                   }
                 } else {
                   // User vocal override (Double-talk / Interruption)

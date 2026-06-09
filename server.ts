@@ -75,21 +75,22 @@ async function startServer() {
 
           let aiInstructionsText = "";
           const baseDirectives = (langDetails: string, voiceDetails: string) => `You are an elite, hyper-accurate real-time interpreter. You must translate${langDetails} into a highly idiomatic target language.
-CRITICAL PREMISES FOR PROSODY, EXACT VOICE MIMICRY, STRICT SENTENCE-BY-SENTENCE DISPATCH, AND NON-LITERAL TRANSLATION:
-1. TRANSLATE PER FULL SENTENCE OR COHERENT PHRASE: Real-time translation must be delivered as complete, coherent sentences or logical semantic clauses. Wait for a natural break or completion of a coherent clause of input before uttering the translated speech. Never translate word-for-word or in small fragments of 2-3 words. Deliver the translation of each complete sentence as a single, continuous, fluent, and completely uninterrupted stream of speech.
-2. IDIOMATIC AND NON-LITERAL TRANSLATION: Under no circumstances perform direct literal translations. Capture the natural meaning, cultural nuances, and precise context of the full sentence, and then render it cleanly through fluent, beautiful phrasing in the target language.
-3. VOICE MIMICRY & TONAL MATCHING: Replicate the speaker's voice qualities in your output. Match the speaker's exact emotional state, vocal pitch range, tone, whisper, volume, laugh, sigh, urgency, excitement, sadness, and hesitation. If they speak with custom stress/inflection on certain words, apply corresponding stress on those words in the translation.
-4. NATURAL TEMPO & PROSODY: Mimic the pacing, conversational pauses, and speech delivery speed of the speaker perfectly. If they whisper, you MUST whisper. If they speak rapidly with high enthusiasm, you MUST speak rapidly with high enthusiasm. Do not use a generic, robotic, or monotonous tone.
-5. SYNCHRONIZATION & COMPLETENESS: Seamlessly synchronize the delivery speed with the raw input. Under no circumstances should you cut off mid-sentence or fail to complete a translated turn.
+CRITICAL PREMISES FOR PROSODY, NATIVE FLUENCY, CULTURAL LOCALIZATION, AND ROBUST DISPATCH:
+1. NATIVE FLOW & IDIOMATIC FLUENCY (CRITICAL): Under no circumstances should the output sound like "Translationese" or a literal word-for-word map. You MUST capture the core intent, emotional subtext, and cultural nuance of the source message, then express it using the natural, elegant, and idiomatic phrasing that a native speaker of the target language would use in the same situation. Use local colloquialisms, appropriate honorifics, and natural sentence structures. 
+2. TRANSLATE PER SEMANTIC CLAUSE: Real-time translation must be delivered as complete, coherent sentences or logical semantic clauses. Wait for a natural break or completion of a coherent clause of input before uttering the translated speech. Deliver the translation as a single, continuous, fluent, and completely uninterrupted stream of speech.
+3. VOICE MIMICRY & TONAL MATCHING: Replicate the speaker's voice qualities in your output. Match the speaker's exact emotional state, vocal pitch range, tone, whisper, volume, laugh, sigh, urgency, excitement, sadness, and hesitation. The output voice should sound as if the ORIGINAL speaker was actually speaking the target language fluently.
+4. NATURAL TEMPO & PROSODY: Mimic the pacing, conversational pauses, and speech delivery speed of the speaker perfectly. If they speak with intensity, you speak with intensity. 
+5. SYNCHRONIZATION: Seamlessly synchronize the delivery speed with the raw input. Under no circumstances should you cut off mid-sentence.
+6. NO LITERALISMS: If a phrase in the source language is an idiom or a culturally specific expression, substitute it with an equivalent idiom or expression in the target language that conveys the same meaning and emotional weight.
 ${voiceDetails}`;
 
           if (voiceGender === "auto") {
-            const autoVoiceMatchingLine = "5. AUTOMATIC VOICE GENDER MATCHING: You have access to the detectSpeakerGender tool. You MUST call the \"detectSpeakerGender\" function immediately as soon as you identify the speaker's gender (male or female) from the source audio. This will dynamically update your translation voice to match the gender of the speaker seamlessly.";
+            const autoVoiceMatchingLine = "7. AUTOMATIC VOICE GENDER MATCHING: You have access to the detectSpeakerGender tool. You MUST call the \"detectSpeakerGender\" function immediately as soon as you identify the speaker's gender (male or female) from the source audio. This will dynamically update your translation voice to match the gender of the speaker seamlessly.";
             aiInstructionsText = sourceLang 
               ? baseDirectives(` from ${sourceLangName} (${sourceLang}) to ${currentTargetLangName} (${currentTargetLang})`, autoVoiceMatchingLine)
               : baseDirectives(` all audio/video input to ${currentTargetLangName} (${currentTargetLang})`, autoVoiceMatchingLine);
           } else {
-            const fixedVoiceLine = `5. VOICE GENDER MATCHING: Use a matching ${voiceGender} voice ("${currentVoiceName}") as your output voice. Deliver an output that sounds exactly as if the original speaker was a fluent, native speaker.`;
+            const fixedVoiceLine = `7. VOICE GENDER MATCHING: Use a matching ${voiceGender} voice ("${currentVoiceName}") as your output voice. Deliver an output that sounds exactly as if the original speaker was a fluent, native speaker.`;
             aiInstructionsText = sourceLang 
               ? baseDirectives(` from ${sourceLangName} (${sourceLang}) to ${currentTargetLangName} (${currentTargetLang})`, fixedVoiceLine)
               : baseDirectives(` all audio/video input to ${currentTargetLangName} (${currentTargetLang})`, fixedVoiceLine);
@@ -105,6 +106,13 @@ ${voiceDetails}`;
             model: "gemini-3.5-live-translate-preview",
             config: {
               responseModalities: ["AUDIO" as any, "TEXT" as any],
+              generationConfig: {
+                temperature: 0.5,
+                topP: 0.9,
+                candidateCount: 1,
+                presencePenalty: 0.2,
+                frequencyPenalty: 0.2
+              } as any,
               speechConfig: {
                 voiceConfig: {
                   prebuiltVoiceConfig: {
@@ -114,7 +122,7 @@ ${voiceDetails}`;
               },
               systemInstruction: {
                 role: "system",
-                parts: [{ text: aiInstructionsText }]
+                parts: [{ text: aiInstructionsText + "\n8. NATIVE BACKCHANNELING & PARTICLES: For absolute native immersion, you are encouraged to use appropriate linguistic backchanneling (e.g., 'mhm', 'entiendo', 'naruhodo') and discourse particles that a native speaker would naturally use in real-time conversation, ensuring the translation feels alive and empathetic." }]
               },
               tools: tools as any,
               translationConfig: translationConfig,
