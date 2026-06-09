@@ -1,0 +1,12 @@
+{
+  "name": "Remix: Remix: Live Translator",
+  "description": "Real-time translator using Gemini Live API with multi-speaker support.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "display-capture"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
