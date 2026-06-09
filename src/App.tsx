@@ -129,7 +129,7 @@ export default function App() {
   const [authChecking, setAuthChecking] = useState(true);
 
   // Live Translator Hook
-  const { isConnected, error, connect, disconnect, videoElementRef, transcripts, setTranscripts, analyserRef } = useLiveTranslator();
+  const { isConnected, isMuted, toggleMute, error, setError, connect, disconnect, videoElementRef, transcripts, setTranscripts, analyserRef } = useLiveTranslator();
   
   // State variables
   const [targetLang, setTargetLang] = useState('fil'); // Default Filipino as in the image
@@ -139,6 +139,7 @@ export default function App() {
   const [echoTargetLang, setEchoTargetLang] = useState(true); // Echo enabled by default
   const [showVisualizer, setShowVisualizer] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [customWsUrl, setCustomWsUrl] = useState(() => localStorage.getItem('custom_ws_url') || '');
   const [isVideoFullScreen, setIsVideoFullScreen] = useState(false);
   const [topics, setTopics] = useState("carry over the emotional nuance to the output audio");
 
@@ -365,8 +366,20 @@ export default function App() {
 
         {/* Error notification */}
         {error && (
-          <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl px-4 py-2 text-sm z-50">
-            {error}
+          <div className="absolute top-6 left-1/2 -translate-x-1/2 bg-red-950/80 backdrop-blur-md border border-red-500/30 text-red-200 rounded-2xl px-5 py-3.5 text-sm z-50 flex items-center justify-between gap-4 max-w-md shadow-2xl animate-fade-in">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400 shrink-0">
+                <Shield className="w-4 h-4" />
+              </div>
+              <p className="leading-snug">{error}</p>
+            </div>
+            <button 
+              onClick={() => setError(null)}
+              className="p-1 rounded-lg hover:bg-white/5 text-red-400 hover:text-white transition-colors shrink-0"
+              title="Dismiss error"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
         )}
 
@@ -559,11 +572,28 @@ export default function App() {
                 <Activity className={`w-4 h-4 ${showVisualizer ? 'text-white' : ''}`} />
               </button>
               <button 
-                onClick={() => {}} 
-                className="p-2 sm:p-2.5 rounded-full hover:bg-white/5 text-neutral-300 transition-colors bg-[#3f3f46]"
-                title="Microphone (Active)"
+                onClick={isConnected ? toggleMute : handleToggleConnect} 
+                className={`p-2 sm:p-2.5 rounded-full transition-colors flex items-center justify-center ${
+                  isConnected 
+                    ? isMuted 
+                      ? 'bg-red-500/20 text-red-500 hover:bg-red-500/30 border border-red-500/30' 
+                      : 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border border-emerald-500/30'
+                    : 'bg-white/5 hover:bg-white/10 text-neutral-300'
+                }`}
+                title={
+                  isConnected 
+                    ? isMuted 
+                      ? "Unmute microphone" 
+                      : "Mute microphone" 
+                    : "Start recording connection"
+                }
+                disabled={isConnecting}
               >
-                <Mic className="w-4 h-4 text-white" />
+                {isConnected && isMuted ? (
+                  <MicOff className="w-4 h-4 text-red-400" />
+                ) : (
+                  <Mic className={`w-4 h-4 ${isConnected ? 'text-emerald-400 animate-pulse' : 'text-neutral-300'}`} />
+                )}
               </button>
               <button 
                 onClick={() => {
@@ -681,6 +711,44 @@ export default function App() {
                >
                  <div className={`w-4 h-4 rounded-full bg-white transition-transform ${echoTargetLang ? 'translate-x-4' : 'translate-x-0'}`}></div>
                </button>
+            </div>
+
+            {/* Custom Backend URL */}
+            <div className="flex flex-col gap-2 mt-4 pt-6 border-t border-white/5">
+               <div className="flex items-center gap-1.5 justify-between">
+                 <h3 className="text-sm font-medium text-neutral-200">Custom connection URL</h3>
+                 {customWsUrl && (
+                   <button 
+                     onClick={() => {
+                       setCustomWsUrl('');
+                       localStorage.removeItem('custom_ws_url');
+                     }}
+                     className="text-[10px] text-neutral-500 hover:text-red-400 font-medium transition-colors"
+                     disabled={isConnected || isConnecting}
+                   >
+                     Reset to default
+                   </button>
+                 )}
+               </div>
+               <p className="text-[11px] text-neutral-500 leading-normal">
+                 Optional backend WebSocket URL. Leave empty to auto-connect to the app's server.
+               </p>
+               <input 
+                 type="text" 
+                 value={customWsUrl}
+                 onChange={(e) => {
+                   setCustomWsUrl(e.target.value);
+                   localStorage.setItem('custom_ws_url', e.target.value);
+                 }}
+                 disabled={isConnected || isConnecting}
+                 placeholder="wss://your-backend.run.app/live"
+                 className="w-full bg-[#1c1c1f] border border-white/10 rounded-lg px-3 py-2 text-xs text-neutral-200 placeholder:text-neutral-600 focus:outline-none focus:border-white/20 disabled:opacity-50"
+               />
+               {window.location.hostname.includes('vercel.app') && !customWsUrl && (
+                 <div className="text-[10px] text-amber-500 bg-amber-500/5 border border-amber-500/10 rounded-lg p-2.5 mt-1 leading-normal">
+                   ⚠️ Running on Vercel: Vercel does not support WebSockets. You must host the backend on a persistent server (like Cloud Run or Render) and paste its URL here to make it connect!
+                 </div>
+               )}
             </div>
           </div>
         ) : (

@@ -5,6 +5,7 @@ export type VideoMode = 'camera' | 'screen' | 'none';
 
 export function useLiveTranslator() {
   const [isConnected, setIsConnected] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [transcripts, setTranscripts] = useState<Array<{ id: string; speaker: string; text: string; time: string; timestamp: number }>>([]);
   
@@ -41,12 +42,51 @@ export function useLiveTranslator() {
     }
   }, []);
 
+  const toggleMute = useCallback(() => {
+    setIsMuted(prev => {
+      const newVal = !prev;
+      if (streamRef.current) {
+        streamRef.current.getAudioTracks().forEach(track => {
+          track.enabled = !newVal;
+        });
+      }
+      return newVal;
+    });
+  }, []);
+
   const connect = useCallback(async (targetLanguageCode: string, mode: VideoMode, targetLanguageName?: string, sourceLanguageCode?: string, sourceLanguageName?: string, topics?: string, echoTargetLang?: boolean) => {
     try {
       setError(null);
+
+      // 1. Request microphone permission first so user is prompted immediately!
+      let micStream: MediaStream | null = null;
+      try {
+        micStream = await navigator.mediaDevices.getUserMedia({ 
+          audio: { 
+            echoCancellation: true, 
+            noiseSuppression: true, 
+            autoGainControl: true 
+          } 
+        });
+        streamRef.current = micStream;
+      } catch (e: any) {
+        console.error("Could not get microphone stream", e);
+        throw new Error("Microphone access is required for real-time translation. Please allow microphone permissions in your browser and try again.");
+      }
       
-      const wsUrl = new URL('/live', window.location.href);
-      wsUrl.protocol = wsUrl.protocol === 'https:' ? 'wss:' : 'ws:';
+      let wsUrl: URL;
+      const customWsUrl = localStorage.getItem('custom_ws_url');
+      if (customWsUrl && customWsUrl.trim() !== '') {
+        try {
+          wsUrl = new URL(customWsUrl);
+        } catch (e) {
+          throw new Error("Invalid custom WebSocket URL format in Settings. Make sure it starts with ws:// or wss://");
+        }
+      } else {
+        wsUrl = new URL('/live', window.location.href);
+        wsUrl.protocol = wsUrl.protocol === 'https:' ? 'wss:' : 'ws:';
+      }
+      
       wsUrl.searchParams.set('targetLanguageCode', targetLanguageCode);
       if (targetLanguageName) {
         wsUrl.searchParams.set('targetLanguageName', targetLanguageName);
@@ -67,8 +107,9 @@ export function useLiveTranslator() {
       const ws = new WebSocket(wsUrl.toString());
       wsRef.current = ws;
 
-      const inputAudioCtx = new window.AudioContext({ sampleRate: 16000 });
-      const outputAudioCtx = new window.AudioContext({ sampleRate: 24000 });
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      const inputAudioCtx = new AudioContextClass({ sampleRate: 16000 });
+      const outputAudioCtx = new AudioContextClass({ sampleRate: 24000 });
       inputCtxRef.current = inputAudioCtx;
       outputCtxRef.current = outputAudioCtx;
 
@@ -80,18 +121,11 @@ export function useLiveTranslator() {
 
       ws.onopen = async () => {
         try {
-          let micStream: MediaStream | null = null;
-          try {
-            micStream = await navigator.mediaDevices.getUserMedia({ 
-              audio: { 
-                echoCancellation: true, 
-                noiseSuppression: true, 
-                autoGainControl: true 
-              } 
+          const activeMicStream = streamRef.current;
+          if (activeMicStream) {
+            activeMicStream.getAudioTracks().forEach(track => {
+              track.enabled = !isMuted;
             });
-            streamRef.current = micStream;
-          } catch (e) {
-            console.warn("Could not get microphone", e);
           }
           
           if (mode === 'camera') {
@@ -104,14 +138,14 @@ export function useLiveTranslator() {
           }
 
           const mixedAudioStream = new MediaStream();
-          if (micStream) {
-            micStream.getAudioTracks().forEach(track => mixedAudioStream.addTrack(track));
+          if (activeMicStream) {
+            activeMicStream.getAudioTracks().forEach(track => mixedAudioStream.addTrack(track));
           }
 
           const audioMixer = inputAudioCtx.createGain();
           
-          if (micStream && micStream.getAudioTracks().length > 0) {
-            const micSource = inputAudioCtx.createMediaStreamSource(micStream);
+          if (activeMicStream && activeMicStream.getAudioTracks().length > 0) {
+            const micSource = inputAudioCtx.createMediaStreamSource(activeMicStream);
             micSource.connect(audioMixer);
             micSourceRef.current = micSource;
           }
@@ -205,7 +239,17 @@ export function useLiveTranslator() {
         }
       };
 
-      ws.onerror = () => setError("WebSocket connection error");
+      ws.onerror = () => {
+        const isVercelHost = window.location.hostname.includes('vercel.app');
+        if (isVercelHost) {
+          setError(
+            "WebSocket connection failed. Vercel's serverless system does not support active WebSocket connections. " +
+            "Please configure your persistent Backend WebSocket URL under Settings in the sidebar."
+          );
+        } else {
+          setError("WebSocket connection failed. Please ensure your backend server is running and supports WebSockets.");
+        }
+      };
       ws.onclose = () => disconnect();
       
     } catch (err: any) {
@@ -253,6 +297,7 @@ export function useLiveTranslator() {
       outputCtxRef.current.close();
       outputCtxRef.current = null;
     }
+    setIsMuted(false);
     setIsConnected(false);
   }, []);
 
@@ -277,7 +322,10 @@ export function useLiveTranslator() {
 
   return {
     isConnected,
+    isMuted,
+    toggleMute,
     error,
+    setError,
     connect,
     disconnect,
     videoElementRef,
