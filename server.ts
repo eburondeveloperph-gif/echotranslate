@@ -22,10 +22,17 @@ async function startServer() {
       const sourceLang = url.searchParams.get("sourceLanguageCode") || "";
       const sourceLangName = url.searchParams.get("sourceLanguageName") || "";
       const topics = url.searchParams.get("topics") || "";
+      const echoTargetParam = url.searchParams.get("echoTargetLanguage");
+      const echoTarget = echoTargetParam !== null ? echoTargetParam === "true" : true;
       
+      let baseTargetLang = targetLang;
+      if (baseTargetLang === "nl-BE") {
+        baseTargetLang = "nl";
+      }
+
       const translationConfig: any = {
-        targetLanguageCode: targetLang,
-        echoTargetLanguage: true
+        targetLanguageCode: baseTargetLang,
+        echoTargetLanguage: echoTarget
       };
       
       if (sourceLang) {

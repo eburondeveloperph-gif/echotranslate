@@ -41,7 +41,7 @@ export function useLiveTranslator() {
     }
   }, []);
 
-  const connect = useCallback(async (targetLanguageCode: string, mode: VideoMode, targetLanguageName?: string, sourceLanguageCode?: string, sourceLanguageName?: string, topics?: string) => {
+  const connect = useCallback(async (targetLanguageCode: string, mode: VideoMode, targetLanguageName?: string, sourceLanguageCode?: string, sourceLanguageName?: string, topics?: string, echoTargetLang?: boolean) => {
     try {
       setError(null);
       
@@ -59,6 +59,9 @@ export function useLiveTranslator() {
       }
       if (topics) {
         wsUrl.searchParams.set('topics', topics);
+      }
+      if (echoTargetLang !== undefined) {
+        wsUrl.searchParams.set('echoTargetLanguage', String(echoTargetLang));
       }
       
       const ws = new WebSocket(wsUrl.toString());

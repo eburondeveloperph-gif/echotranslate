@@ -4,7 +4,7 @@ import {
   Info, PanelRight, Maximize2, Minimize2, LogOut, Save, History, Settings, Trash2, Shield
 } from 'lucide-react';
 import { useLiveTranslator, VideoMode } from './hooks/useLiveTranslator';
-import { auth, db } from './lib/firebase';
+import { auth, db, OperationType, handleFirestoreError } from './lib/firebase';
 import { onAuthStateChanged, signOut, User as FirebaseUser } from 'firebase/auth';
 import { collection, addDoc, getDocs, doc, deleteDoc, query, where, serverTimestamp } from 'firebase/firestore';
 import Auth from './components/Auth';
@@ -160,9 +160,10 @@ export default function App() {
   // Fetch Session History from Firestore
   const fetchHistory = async () => {
     if (!currentUser) return;
+    const path = 'history';
     try {
       const q = query(
-        collection(db, 'history'),
+        collection(db, path),
         where('userId', '==', currentUser.uid)
       );
       const querySnapshot = await getDocs(q);
@@ -179,6 +180,7 @@ export default function App() {
       setSavedSessions(list);
     } catch (err) {
       console.error("Error fetching history:", err);
+      handleFirestoreError(err, OperationType.GET, path);
     }
   };
 
@@ -192,6 +194,7 @@ export default function App() {
   const handleSaveSession = async () => {
     if (!currentUser || transcripts.length === 0) return;
     setIsSaving(true);
+    const path = 'history';
     try {
       const sessionId = Math.random().toString(36).substring(2, 9);
       const sessionData = {
@@ -203,11 +206,12 @@ export default function App() {
         createdAt: serverTimestamp(),
         items: transcripts
       };
-      await addDoc(collection(db, 'history'), sessionData);
+      await addDoc(collection(db, path), sessionData);
       setActiveSessionId(sessionId);
       fetchHistory();
     } catch (err) {
       console.error("Error saving history:", err);
+      handleFirestoreError(err, OperationType.CREATE, path);
     } finally {
       setIsSaving(false);
     }
@@ -216,6 +220,7 @@ export default function App() {
   // Delete session history from Firestore
   const handleDeleteSession = async (docId: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    const path = `history/${docId}`;
     try {
       await deleteDoc(doc(db, 'history', docId));
       if (activeSessionId === docId) {
@@ -224,6 +229,7 @@ export default function App() {
       fetchHistory();
     } catch (err) {
       console.error("Error deleting session:", err);
+      handleFirestoreError(err, OperationType.DELETE, path);
     }
   };
 
@@ -260,7 +266,7 @@ export default function App() {
       setActiveSessionId(null); // Clear viewing when initiating live stream
       const targetLangName = ALL_LANGUAGES.find(l => l.code === targetLang)?.name;
       const sourceLangName = ALL_LANGUAGES.find(l => l.code === sourceLang)?.name;
-      await connect(targetLang, videoMode, targetLangName, sourceLang, sourceLangName, topics);
+      await connect(targetLang, videoMode, targetLangName, sourceLang, sourceLangName, topics, echoTargetLang);
       setIsConnecting(false);
     }
   };
