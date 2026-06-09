@@ -289,7 +289,12 @@ ${voiceDetails}`;
       });
 
       clientWs.on("close", () => {
-        console.log("Client disconnected");
+        console.log("Client disconnected - closing Gemini live session...");
+        try {
+          session.close();
+        } catch (err) {
+          console.error("Error closing Gemini live session:", err);
+        }
       });
 
     } catch (e) {

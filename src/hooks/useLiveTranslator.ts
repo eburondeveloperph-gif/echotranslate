@@ -178,17 +178,8 @@ export function useLiveTranslator() {
           
           processor.onaudioprocess = (e) => {
             if (ws.readyState === WebSocket.OPEN) {
-              // Echo feedback defense: Check if we are currently playing back translated audio
-              // If we are playing translation audio, we do NOT send microphone audio chunks to the server.
-              // This completely prevents the model's output voice from being fed back to the mic and self-interrupting the model!
-              const isPlayingTranslation = outputCtxRef.current
-                ? (nextStartTimeRef.current + 0.150) > outputCtxRef.current.currentTime
-                : false;
-
-              if (!isPlayingTranslation) {
-                const base64 = pcmToBase64(e.inputBuffer.getChannelData(0));
-                ws.send(JSON.stringify({ audio: base64 }));
-              }
+              const base64 = pcmToBase64(e.inputBuffer.getChannelData(0));
+              ws.send(JSON.stringify({ audio: base64 }));
             }
           };
 
