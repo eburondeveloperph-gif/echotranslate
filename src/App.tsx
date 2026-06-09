@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Mic, MicOff, Camera, Monitor, VideoOff, Globe, Loader2, X, Activity, Info, PanelRight } from 'lucide-react';
+import { Mic, MicOff, Camera, Monitor, VideoOff, Globe, Loader2, X, Activity, Info, PanelRight, Maximize2, Minimize2 } from 'lucide-react';
 import { useLiveTranslator, VideoMode } from './hooks/useLiveTranslator';
 
 function AudioVisualizer({ analyserRef, isConnected }: { analyserRef: React.MutableRefObject<AnalyserNode | null>, isConnected: boolean }) {
@@ -55,6 +55,66 @@ function AudioVisualizer({ analyserRef, isConnected }: { analyserRef: React.Muta
   );
 }
 
+function MicroVisualizer({ analyserRef, isConnected }: { analyserRef: React.MutableRefObject<AnalyserNode | null>, isConnected: boolean }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    if (!isConnected || !canvasRef.current) return;
+    
+    let animationId: number;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    
+    const draw = () => {
+      if (!ctx || !analyserRef.current) return;
+      animationId = requestAnimationFrame(draw);
+      
+      const analyser = analyserRef.current;
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      analyser.getByteFrequencyData(dataArray);
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      const width = canvas.width;
+      const height = canvas.height;
+      const numBars = 4;
+      const barWidth = width / numBars;
+      let x = 0;
+
+      for (let i = 0; i < numBars; i++) {
+        // Human voice uses lower frequency bins
+        const val = dataArray[i * 2] || 0; 
+        const percent = val / 255;
+        const barHeight = Math.max(3, percent * height);
+        
+        ctx.fillStyle = `rgb(52, 211, 153)`; // emerald-400 (matches stream is live status dot)
+        
+        const rY = height - barHeight;
+        ctx.beginPath();
+        if (ctx.roundRect) {
+          ctx.roundRect(x, rY, barWidth - 1.5, barHeight, 1);
+        } else {
+          ctx.rect(x, rY, barWidth - 1.5, barHeight);
+        }
+        ctx.fill();
+        x += barWidth;
+      }
+    };
+    draw();
+
+    return () => cancelAnimationFrame(animationId);
+  }, [isConnected, analyserRef]);
+
+  return (
+    <canvas 
+      ref={canvasRef} 
+      width={24} 
+      height={14} 
+      className={`w-[24.5px] h-[14px] transition-opacity duration-300 ml-1.5 ${isConnected ? 'opacity-100' : 'opacity-0'}`} 
+    />
+  );
+}
+
 const LANGUAGES = [
   { code: 'af', name: 'Afrikaans' },
   { code: 'sq', name: 'Albanian' },
@@ -86,6 +146,7 @@ export default function App() {
   const [echoTargetLang, setEchoTargetLang] = useState(false);
   const [showVisualizer, setShowVisualizer] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isVideoFullScreen, setIsVideoFullScreen] = useState(false);
   const [topics, setTopics] = useState("carry over the emotional nuance to the output audio");
 
   // Group transcripts by source vs target
@@ -140,88 +201,128 @@ export default function App() {
             </div>
         )}
 
-        <div className="flex flex-1 gap-16 overflow-hidden">
+        <div className="flex flex-1 gap-12 overflow-hidden relative z-10 pointer-events-auto w-full h-full animate-fade-in">
           
-          {/* Input Transcript Column */}
-          <div className="flex-1 flex flex-col min-w-0 h-full">
-            <h2 className="text-[#a1a1aa] font-medium text-lg mb-6 shrink-0">Input transcript</h2>
-            <div className="flex-1 overflow-y-auto pb-32 custom-scrollbar pr-4 text-neutral-300 font-light leading-relaxed text-lg">
-              {inputTranscripts.length === 0 ? (
-                <div className="flex items-center gap-3">
-                  <span className="bg-[#27272a] text-[#d4d4d8] text-xs font-semibold px-2 py-1 rounded">EN</span>
-                  <span className="opacity-50">Waiting for speech...</span>
-                </div>
-              ) : (
-                <div className="flex">
-                   <span className="bg-[#27272a] text-[#d4d4d8] text-xs font-semibold px-2 py-0.5 rounded mt-1 mr-3 h-fit shrink-0">EN</span>
-                   <span>
-                     {inputTranscripts.map((t, i) => (
-                       <React.Fragment key={t.id}>
-                         {t.text}{' '}
-                       </React.Fragment>
-                     ))}
-                   </span>
-                </div>
+          {/* Video Container - behaves as a flex column when full screen, or as an absolute overlay when in PiP mode */}
+          <div className={`transition-all duration-300 overflow-hidden bg-[#0c0c0e] flex items-center justify-center ${
+            videoMode === 'none' 
+              ? 'hidden pointer-events-none' 
+              : isVideoFullScreen
+                ? 'relative flex-[2.5] h-full rounded-2xl border border-white/10 z-0' 
+                : 'absolute bottom-24 right-12 w-[320px] h-[180px] rounded-xl shadow-2xl border border-white/10 z-30 group'
+          }`}>
+             <video
+                ref={(el) => {
+                  videoElementRef.current = el;
+                  if (el && videoMode === 'screen') {
+                    el.volume = 0; // Mute local feedback
+                  }
+                }}
+                autoPlay
+                playsInline
+                muted
+                className={`w-full h-full ${videoMode === 'screen' ? 'object-contain' : 'object-cover'}`}
+              />
+              {videoMode !== 'none' && !isConnected && (
+                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm z-10">
+                   <VideoOff className="w-8 h-8 text-white/50 mb-2" />
+                   <span className="text-xs text-white/50 font-medium">Inactive</span>
+                 </div>
               )}
-              <div ref={inputEndRef} />
-            </div>
+              
+              {/* Immersive overlay toggle icon button */}
+              {videoMode !== 'none' && (
+                <button 
+                  onClick={() => setIsVideoFullScreen(!isVideoFullScreen)}
+                  className={`absolute top-4 right-4 z-40 p-2.5 rounded-full transition-all duration-200 bg-black/70 hover:bg-black/95 text-white border border-white/15 ${
+                    isVideoFullScreen ? 'opacity-100 shadow-md' : 'opacity-0 group-hover:opacity-100 shadow-lg'
+                  }`}
+                  title={isVideoFullScreen ? "Exit immersive view" : "Immersive full-screen translation"}
+                >
+                  {isVideoFullScreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                </button>
+              )}
           </div>
 
-          {/* Output Transcript Column */}
-          <div className="flex-1 flex flex-col min-w-0 h-full">
-            <h2 className="text-[#a1a1aa] font-medium text-lg mb-6 shrink-0">Output transcript</h2>
-            <div className="flex-1 overflow-y-auto pb-32 custom-scrollbar pr-4 text-neutral-300 font-light leading-relaxed text-lg">
-              {outputTranscripts.length === 0 ? (
-                <div className="flex items-center gap-3">
-                  <span className="bg-[#27272a] text-[#d4d4d8] text-xs font-semibold px-2 py-1 rounded">
-                    {targetLang.toUpperCase()}
-                  </span>
-                  <span className="opacity-50">Translation will appear here...</span>
-                </div>
-              ) : (
-                <div className="flex">
-                   <span className="bg-[#27272a] text-[#d4d4d8] text-xs font-semibold px-2 py-0.5 rounded mt-1 mr-3 h-fit shrink-0">
-                     {targetLang.toUpperCase()}
-                   </span>
-                   <span>
-                     {outputTranscripts.map((t, i) => (
-                       <React.Fragment key={t.id}>
-                         {t.text}{' '}
-                       </React.Fragment>
-                     ))}
-                   </span>
-                </div>
-              )}
-              <div ref={outputEndRef} />
+          {/* Transcripts Wrapper Container */}
+          <div className={`transition-all duration-300 min-w-0 h-full flex ${
+            isVideoFullScreen 
+              ? 'flex-col flex-1 max-w-[420px] gap-6' 
+              : 'flex-row flex-1 gap-12'
+          }`}>
+            
+            {/* Input Transcript Column */}
+            <div className={`flex flex-col min-w-0 transition-all duration-300 ${
+              isVideoFullScreen 
+                ? 'flex-1 h-1/2 bg-[#18181b]/30 border border-white/5 p-5 rounded-2xl shadow-xl' 
+                : 'flex-1 h-full'
+            }`}>
+              <h2 className="text-[#a1a1aa] font-medium text-lg mb-4 shrink-0">Input transcript</h2>
+              <div className="flex-1 overflow-y-auto pb-8 custom-scrollbar pr-2 space-y-4">
+                {inputTranscripts.length === 0 ? (
+                  <div className="flex items-center gap-3">
+                    <span className="bg-[#27272a] text-[#d4d4d8] text-xs font-semibold px-2 py-1 rounded">Source</span>
+                    <span className="opacity-50 text-lg">Waiting for speech...</span>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-4">
+                    {inputTranscripts.map((t) => (
+                      <div key={t.id} className="flex flex-col gap-2 p-4 bg-[#18181b]/50 border border-white/5 rounded-xl transition-all hover:bg-[#18181b]/70">
+                        <div className="flex items-center gap-2">
+                          <span className="bg-blue-500/10 text-blue-400 border border-blue-500/25 text-xs font-semibold px-2 py-0.5 rounded">
+                            Source
+                          </span>
+                          <span className="text-xs text-neutral-500 font-mono">{t.time}</span>
+                        </div>
+                        <p className="text-neutral-200 font-light leading-relaxed text-lg">{t.text}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div ref={inputEndRef} />
+              </div>
             </div>
+
+            {/* Output Transcript Column */}
+            <div className={`flex flex-col min-w-0 transition-all duration-300 ${
+              isVideoFullScreen 
+                ? 'flex-1 h-1/2 bg-[#18181b]/30 border border-white/5 p-5 rounded-2xl shadow-xl' 
+                : 'flex-1 h-full'
+            }`}>
+              <h2 className="text-[#a1a1aa] font-medium text-lg mb-4 shrink-0">Output transcript</h2>
+              <div className="flex-1 overflow-y-auto pb-8 custom-scrollbar pr-2 space-y-4">
+                {outputTranscripts.length === 0 ? (
+                  <div className="flex items-center gap-3">
+                    <span className="bg-[#27272a] text-[#d4d4d8] text-xs font-semibold px-2 py-1 rounded">
+                      Translated
+                    </span>
+                    <span className="opacity-50 text-lg">Translation will appear here...</span>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-4">
+                    {outputTranscripts.map((t) => (
+                      <div key={t.id} className="flex flex-col gap-2 p-4 bg-[#18181b]/50 border border-white/5 rounded-xl transition-all hover:bg-[#18181b]/70">
+                        <div className="flex items-center gap-2">
+                          <span className="bg-[#27272a] text-blue-400 border border-white/5 text-xs font-semibold px-2 py-0.5 rounded">
+                            Translated ({targetLang.toUpperCase()})
+                          </span>
+                          <span className="text-xs text-neutral-500 font-mono">{t.time}</span>
+                        </div>
+                        <p className="text-neutral-200 font-light leading-relaxed text-lg">{t.text}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div ref={outputEndRef} />
+              </div>
+            </div>
+
           </div>
 
-        </div>
-
-        {/* Video Picture-in-Picture Preview */}
-        <div className={`absolute bottom-24 right-12 w-[320px] rounded-xl overflow-hidden bg-black shadow-2xl border border-white/10 transition-all duration-300 ${videoMode === 'none' ? 'opacity-0 scale-95 pointer-events-none' : 'opacity-100 scale-100'}`}>
-           <video
-              ref={(el) => {
-                videoElementRef.current = el;
-                if (el && videoMode === 'screen') {
-                  el.volume = 0; // Mute local feedback
-                }
-              }}
-              autoPlay
-              playsInline
-              muted
-              className="w-full aspect-video object-cover"
-            />
-            {videoMode !== 'none' && !isConnected && (
-               <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm">
-                 <VideoOff className="w-8 h-8 text-white/50 mb-2" />
-                 <span className="text-xs text-white/50 font-medium">Inactive</span>
-               </div>
-            )}
         </div>
 
         {/* Floating Controls Bar */}
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center z-10 relative">
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center z-30">
           
           {/* Audio Visualizer Popover */}
           <div className={`transition-all duration-300 absolute bottom-[calc(100%+16px)] ${showVisualizer ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}`}>
@@ -244,7 +345,14 @@ export default function App() {
                  <Loader2 className="w-4 h-4 animate-spin text-neutral-400" /> Connecting...
                </span>
              ) : isConnected ? (
-               <span className="text-sm font-medium text-white">Stream is live</span>
+               <div className="flex items-center gap-2">
+                 <span className="relative flex h-2 w-2">
+                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                   <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                 </span>
+                 <span className="text-sm font-medium text-white">Stream is live</span>
+                 <MicroVisualizer analyserRef={analyserRef} isConnected={isConnected} />
+               </div>
              ) : (
                <button onClick={handleToggleConnect} className="text-sm font-medium text-blue-400 hover:text-blue-300">Start connection</button>
              )}
@@ -274,12 +382,27 @@ export default function App() {
               <Mic className="w-4 h-4 text-white" />
             </button>
             <button 
-              onClick={() => setVideoMode(prev => prev === 'screen' ? 'none' : 'screen')}
+              onClick={() => {
+                const isEnabling = videoMode === 'none';
+                setVideoMode(isEnabling ? 'screen' : 'none');
+                if (!isEnabling) {
+                  setIsVideoFullScreen(false);
+                }
+              }}
               className={`p-2.5 rounded-full transition-colors ${videoMode === 'screen' ? 'bg-blue-600' : 'bg-white/5 hover:bg-white/10 text-neutral-300'}`}
               title="Share screen"
             >
               <Monitor className={`w-4 h-4 ${videoMode === 'screen' ? 'text-white' : ''}`} />
             </button>
+            {videoMode !== 'none' && (
+              <button 
+                onClick={() => setIsVideoFullScreen(!isVideoFullScreen)}
+                className={`p-2.5 rounded-full transition-colors ${isVideoFullScreen ? 'bg-blue-600 text-white animate-pulse' : 'bg-white/5 hover:bg-white/10 text-neutral-300'}`}
+                title={isVideoFullScreen ? "Minimize share screen" : "Fullscreen share screen"}
+              >
+                {isVideoFullScreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+              </button>
+            )}
           </div>
           </div>
         </div>
