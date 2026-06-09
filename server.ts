@@ -41,11 +41,40 @@ async function startServer() {
       }
 
       // Match the correct prebuilt voice based on the selected gender
-      const voiceName = voiceGender === "male" ? "Zephyr" : "Kore";
+      let currentVoiceName = voiceGender === "male" ? "Zephyr" : "Kore";
 
-      let aiInstructionsText = sourceLang 
-        ? `You are an elite, hyper-accurate real-time interpreter. Translate from ${sourceLangName} (${sourceLang}) to highly idiomatic ${targetLangName} (${targetLang}).\nCore directives:\n1. NATIVITY & IDIOMS: Do not translate word-by-word. Extract the core meaning and express it using the most natural, native phrasing, idioms, and grammatical structures characteristic of ${targetLangName}.\n2. PROSODY & EXPRESSION: Flawlessly mimic the speaker's nuance, tone, rhythm, speed, pacing, and emotion. Maintain exact emotional resonance. For example, if the speaker speaks quickly, slowly, emotionally, excitedly, sadly, angrily, or whispers, capture and reproduce that exact style, speed, mood, and delivery in your translated audio output.\n3. CLARITY & ACCURACY: Ensure maximum clarity and absolute semantic accuracy. Prioritize coherent, fully formed thoughts over literal fragments, even if you remain 3 to 4 seconds behind to capture full context.\n4. SYNCHRONIZATION: Seamlessly sync your speaking speed with the source audio.\n5. COMPLETENESS: Always finish your translations completely. Do not cut off mid-sentence or overrun conversational turns. Wait for logical breaks before completing your thought.\n6. VOICE GENDER MATCHING: Use a matching ${voiceGender} voice ("${voiceName}") as your output voice.\nDeliver an output that sounds exactly as if the original speaker was a fluent, native ${targetLangName} speaker.`
-        : `You are an elite, hyper-accurate real-time interpreter. Translate all audio/video input into highly idiomatic ${targetLangName} (${targetLang}).\nCore directives:\n1. NATIVITY & IDIOMS: Do not translate word-by-word. Extract the core meaning and express it using the most natural, native phrasing, idioms, and grammatical structures characteristic of ${targetLangName}.\n2. PROSODY & EXPRESSION: Flawlessly mimic the speaker's nuance, tone, rhythm, speed, pacing, and emotion. Maintain exact emotional resonance. For example, if the speaker speaks quickly, slowly, emotionally, excitedly, sadly, angrily, or whispers, capture and reproduce that exact style, speed, mood, and delivery in your translated audio output.\n3. CLARITY & ACCURACY: Ensure maximum clarity and absolute semantic accuracy. Prioritize coherent, fully formed thoughts over literal fragments, even if you remain 3 to 4 seconds behind to capture full context.\n4. SYNCHRONIZATION: Seamlessly sync your speaking speed with the source audio.\n5. COMPLETENESS: Always finish your translations completely. Do not cut off mid-sentence or overrun conversational turns. Wait for logical breaks before completing your thought.\n6. VOICE GENDER MATCHING: Use a matching ${voiceGender} voice ("${voiceName}") as your output voice.\nDeliver an output that sounds exactly as if the original speaker was a fluent, native ${targetLangName} speaker.`;
+      const tools = voiceGender === "auto" ? [
+        {
+          functionDeclarations: [
+            {
+              name: "detectSpeakerGender",
+              description: "Call this immediately when you hear the voice of the primary source speaker (the human user speaking the input audio) and determine their gender (whether they sound male or female based on audio pitch, vocal tone, or style). This matches the translation voice gender with the source speaker gender dynamically.",
+              parameters: {
+                type: "OBJECT",
+                properties: {
+                  gender: {
+                    type: "STRING",
+                    enum: ["male", "female"],
+                    description: "The auto-detected gender, either 'male' or 'female'."
+                  }
+                },
+                required: ["gender"]
+              }
+            }
+          ]
+        }
+      ] : undefined;
+
+      let aiInstructionsText = "";
+      if (voiceGender === "auto") {
+        aiInstructionsText = sourceLang 
+          ? `You are an elite, hyper-accurate real-time interpreter. Translate from ${sourceLangName} (${sourceLang}) to highly idiomatic ${targetLangName} (${targetLang}).\nCore directives:\n1. NATIVITY & IDIOMS: Do not translate word-by-word. Extract the core meaning and express it using the most natural, native phrasing, idioms, and grammatical structures characteristic of ${targetLangName}.\n2. PROSODY & EXPRESSION: Flawlessly mimic the speaker's nuance, tone, rhythm, speed, pacing, and emotion. Maintain exact emotional resonance. For example, if the speaker speaks quickly, slowly, emotionally, excitedly, sadly, angrily, or whispers, capture and reproduce that exact style, speed, mood, and delivery in your translated audio output.\n3. CLARITY & ACCURACY: Ensure maximum clarity and absolute semantic accuracy. Prioritize coherent, fully formed thoughts over literal fragments, even if you remain 3 to 4 seconds behind to capture full context.\n4. SYNCHRONIZATION: Seamlessly sync your speaking speed with the source audio.\n5. COMPLETENESS: Always finish your translations completely. Do not cut off mid-sentence or overrun conversational turns. Wait for logical breaks before completing your thought.\n6. AUTOMATIC VOICE GENDER MATCHING: You have access to the detectSpeakerGender tool. You MUST call the "detectSpeakerGender" function immediately as soon as you identify the speaker's gender (male or female) from the source audio. This will dynamically update your translation voice to match the gender of the speaker seamlessly. Continue translating normally after invoking it.`
+          : `You are an elite, hyper-accurate real-time interpreter. Translate all audio/video input into highly idiomatic ${targetLangName} (${targetLang}).\nCore directives:\n1. NATIVITY & IDIOMS: Do not translate word-by-word. Extract the core meaning and express it using the most natural, native phrasing, idioms, and grammatical structures characteristic of ${targetLangName}.\n2. PROSODY & EXPRESSION: Flawlessly mimic the speaker's nuance, tone, rhythm, speed, pacing, and emotion. Maintain exact emotional resonance. For example, if the speaker speaks quickly, slowly, emotionally, excitedly, sadly, angrily, or whispers, capture and reproduce that exact style, speed, mood, and delivery in your translated audio output.\n3. CLARITY & ACCURACY: Ensure maximum clarity and absolute semantic accuracy. Prioritize coherent, fully formed thoughts over literal fragments, even if you remain 3 to 4 seconds behind to capture full context.\n4. SYNCHRONIZATION: Seamlessly sync your speaking speed with the source audio.\n5. COMPLETENESS: Always finish your translations completely. Do not cut off mid-sentence or overrun conversational turns. Wait for logical breaks before completing your thought.\n6. AUTOMATIC VOICE GENDER MATCHING: You have access to the detectSpeakerGender tool. You MUST call the "detectSpeakerGender" function immediately as soon as you identify the speaker's gender (male or female) from the source audio. This will dynamically update your translation voice to match the gender of the speaker seamlessly. Continue translating normally after invoking it.`;
+      } else {
+        aiInstructionsText = sourceLang 
+          ? `You are an elite, hyper-accurate real-time interpreter. Translate from ${sourceLangName} (${sourceLang}) to highly idiomatic ${targetLangName} (${targetLang}).\nCore directives:\n1. NATIVITY & IDIOMS: Do not translate word-by-word. Extract the core meaning and express it using the most natural, native phrasing, idioms, and grammatical structures characteristic of ${targetLangName}.\n2. PROSODY & EXPRESSION: Flawlessly mimic the speaker's nuance, tone, rhythm, speed, pacing, and emotion. Maintain exact emotional resonance. For example, if the speaker speaks quickly, slowly, emotionally, excitedly, sadly, angrily, or whispers, capture and reproduce that exact style, speed, mood, and delivery in your translated audio output.\n3. CLARITY & ACCURACY: Ensure maximum clarity and absolute semantic accuracy. Prioritize coherent, fully formed thoughts over literal fragments, even if you remain 3 to 4 seconds behind to capture full context.\n4. SYNCHRONIZATION: Seamlessly sync your speaking speed with the source audio.\n5. COMPLETENESS: Always finish your translations completely. Do not cut off mid-sentence or overrun conversational turns. Wait for logical breaks before completing your thought.\n6. VOICE GENDER MATCHING: Use a matching ${voiceGender} voice ("${currentVoiceName}") as your output voice.\nDeliver an output that sounds exactly as if the original speaker was a fluent, native ${targetLangName} speaker.`
+          : `You are an elite, hyper-accurate real-time interpreter. Translate all audio/video input into highly idiomatic ${targetLangName} (${targetLang}).\nCore directives:\n1. NATIVITY & IDIOMS: Do not translate word-by-word. Extract the core meaning and express it using the most natural, native phrasing, idioms, and grammatical structures characteristic of ${targetLangName}.\n2. PROSODY & EXPRESSION: Flawlessly mimic the speaker's nuance, tone, rhythm, speed, pacing, and emotion. Maintain exact emotional resonance. For example, if the speaker speaks quickly, slowly, emotionally, excitedly, sadly, angrily, or whispers, capture and reproduce that exact style, speed, mood, and delivery in your translated audio output.\n3. CLARITY & ACCURACY: Ensure maximum clarity and absolute semantic accuracy. Prioritize coherent, fully formed thoughts over literal fragments, even if you remain 3 to 4 seconds behind to capture full context.\n4. SYNCHRONIZATION: Seamlessly sync your speaking speed with the source audio.\n5. COMPLETENESS: Always finish your translations completely. Do not cut off mid-sentence or overrun conversational turns. Wait for logical breaks before completing your thought.\n6. VOICE GENDER MATCHING: Use a matching ${voiceGender} voice ("${currentVoiceName}") as your output voice.\nDeliver an output that sounds exactly as if the original speaker was a fluent, native ${targetLangName} speaker.`;
+      }
 
       if (topics) {
          aiInstructionsText += `\nAdditional Context/Topics:\n${topics}`;
@@ -58,7 +87,7 @@ async function startServer() {
           speechConfig: {
             voiceConfig: {
               prebuiltVoiceConfig: {
-                voiceName: voiceName
+                voiceName: currentVoiceName
               }
             }
           },
@@ -66,6 +95,7 @@ async function startServer() {
             role: "system",
             parts: [{ text: aiInstructionsText }]
           },
+          tools: tools as any,
           translationConfig: translationConfig,
           outputAudioTranscription: {},
           inputAudioTranscription: {}
@@ -75,8 +105,97 @@ async function startServer() {
             try {
               const msgAny = message as any;
 
+              // Handle function / tool calling
+              if (msgAny.toolCall) {
+                const functionCalls = msgAny.toolCall.functionCalls;
+                if (functionCalls && functionCalls.length > 0) {
+                  for (const call of functionCalls) {
+                    if (call.name === "detectSpeakerGender") {
+                      const detected = call.args?.gender || "female";
+                      console.log(`[Gender Detector] Model detected source speaker as: ${detected}`);
+                      
+                      // Respond to the tool call so model transaction can finalize smoothly
+                      session.sendToolResponse({
+                        functionResponses: [
+                          {
+                            response: { output: { success: true, genderMatched: detected } },
+                            id: call.id,
+                            name: "detectSpeakerGender"
+                          }
+                        ]
+                      });
+
+                      // Update output voice
+                      const targetVoiceName = detected === "male" ? "Zephyr" : "Kore";
+                      if (targetVoiceName !== currentVoiceName) {
+                        currentVoiceName = targetVoiceName;
+                        console.log(`[Gender Detector] Dynamically update voiceName to: ${targetVoiceName}`);
+
+                        // Send dynamic session update
+                        (session as any).conn.send(JSON.stringify({
+                          setup: {
+                            model: "gemini-3.5-live-translate-preview",
+                            config: {
+                              speechConfig: {
+                                voiceConfig: {
+                                  prebuiltVoiceConfig: {
+                                    voiceName: targetVoiceName
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }));
+
+                        // Notify client to show nice auto-detected toast or text element
+                        clientWs.send(JSON.stringify({ autoDetectedGender: detected }));
+                      }
+                    }
+                  }
+                }
+              }
+
               if (msgAny.serverContent && msgAny.serverContent.modelTurn) {
                 for (const part of msgAny.serverContent.modelTurn.parts) {
+                  if (part.functionCall && part.functionCall.name === "detectSpeakerGender") {
+                    const call = part.functionCall;
+                    const detected = call.args?.gender || "female";
+                    console.log(`[Gender Detector] Dynamic part detected speaker as: ${detected}`);
+                    
+                    session.sendToolResponse({
+                      functionResponses: [
+                        {
+                          response: { output: { success: true, genderMatched: detected } },
+                          id: call.id,
+                          name: "detectSpeakerGender"
+                        }
+                      ]
+                    });
+
+                    const targetVoiceName = detected === "male" ? "Zephyr" : "Kore";
+                    if (targetVoiceName !== currentVoiceName) {
+                      currentVoiceName = targetVoiceName;
+                      console.log(`[Gender Detector] Dynamic update voiceName inside parts to: ${targetVoiceName}`);
+
+                      (session as any).conn.send(JSON.stringify({
+                        setup: {
+                          model: "gemini-3.5-live-translate-preview",
+                          config: {
+                            speechConfig: {
+                              voiceConfig: {
+                                prebuiltVoiceConfig: {
+                                  voiceName: targetVoiceName
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }));
+
+                      clientWs.send(JSON.stringify({ autoDetectedGender: detected }));
+                    }
+                  }
+
                   if (part.inlineData?.data) {
                     clientWs.send(JSON.stringify({ audio: part.inlineData.data }));
                   } else if (part.text) {

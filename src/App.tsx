@@ -142,8 +142,8 @@ export default function App() {
   const [customWsUrl, setCustomWsUrl] = useState(() => localStorage.getItem('custom_ws_url') || '');
   const [isVideoFullScreen, setIsVideoFullScreen] = useState(false);
   const [topics, setTopics] = useState("carry over the emotional nuance to the output audio");
-  const [voiceGender, setVoiceGender] = useState<'female' | 'male'>(() => {
-    return (localStorage.getItem('translation_voice_gender') as 'female' | 'male') || 'female';
+  const [voiceGender, setVoiceGender] = useState<'auto' | 'female' | 'male'>(() => {
+    return (localStorage.getItem('translation_voice_gender') as 'auto' | 'female' | 'male') || 'auto';
   });
 
   // Firebase History State
@@ -722,14 +722,28 @@ export default function App() {
                   <span className="text-sm font-medium text-neutral-200">Translation Voice Gender</span>
                   <span className="text-[11px] text-neutral-500 font-medium">Matches source speaker</span>
                 </div>
-                <div className="grid grid-cols-2 gap-2 bg-[#1c1c1f] p-1 rounded-lg border border-white/5">
+                <div className="grid grid-cols-3 gap-1 bg-[#1c1c1f] p-1 rounded-lg border border-white/5">
+                  <button 
+                    disabled={isConnected || isConnecting}
+                    onClick={() => {
+                      setVoiceGender('auto');
+                      localStorage.setItem('translation_voice_gender', 'auto');
+                    }}
+                    className={`flex items-center justify-center py-2 px-1 rounded-md text-[11px] font-medium transition-all ${
+                      voiceGender === 'auto' 
+                        ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20 shadow-sm font-semibold' 
+                        : 'text-neutral-400 hover:text-white hover:bg-white/5 disabled:opacity-50'
+                    }`}
+                  >
+                    <span>Auto (Detect)</span>
+                  </button>
                   <button 
                     disabled={isConnected || isConnecting}
                     onClick={() => {
                       setVoiceGender('female');
                       localStorage.setItem('translation_voice_gender', 'female');
                     }}
-                    className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-md text-xs font-medium transition-all ${
+                    className={`flex items-center justify-center py-2 px-1 rounded-md text-[11px] font-medium transition-all ${
                       voiceGender === 'female' 
                         ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20 shadow-sm font-semibold' 
                         : 'text-neutral-400 hover:text-white hover:bg-white/5 disabled:opacity-50'
@@ -743,7 +757,7 @@ export default function App() {
                       setVoiceGender('male');
                       localStorage.setItem('translation_voice_gender', 'male');
                     }}
-                    className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-md text-xs font-medium transition-all ${
+                    className={`flex items-center justify-center py-2 px-1 rounded-md text-[11px] font-medium transition-all ${
                       voiceGender === 'male' 
                         ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20 shadow-sm font-semibold' 
                         : 'text-neutral-400 hover:text-white hover:bg-white/5 disabled:opacity-50'

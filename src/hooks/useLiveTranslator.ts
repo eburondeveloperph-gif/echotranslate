@@ -54,7 +54,7 @@ export function useLiveTranslator() {
     });
   }, []);
 
-  const connect = useCallback(async (targetLanguageCode: string, mode: VideoMode, targetLanguageName?: string, sourceLanguageCode?: string, sourceLanguageName?: string, topics?: string, echoTargetLang?: boolean, voiceGender?: 'female' | 'male') => {
+  const connect = useCallback(async (targetLanguageCode: string, mode: VideoMode, targetLanguageName?: string, sourceLanguageCode?: string, sourceLanguageName?: string, topics?: string, echoTargetLang?: boolean, voiceGender?: 'auto' | 'female' | 'male') => {
     try {
       setError(null);
 
@@ -227,6 +227,18 @@ export function useLiveTranslator() {
             setTranscripts(prev => [...prev, {
               id: Math.random().toString(),
               speaker: msg.speaker || 'Speaker',
+              text: textValue,
+              time: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+              timestamp: now.getTime()
+            }]);
+          }
+
+          if (msg.autoDetectedGender) {
+            const now = new Date();
+            const textValue = `🎙️ Matches translation prebuilt voice to detected speaker: ${msg.autoDetectedGender === 'male' ? 'Zephyr (Male)' : 'Kore (Female)'}`;
+            setTranscripts(prev => [...prev, {
+              id: Math.random().toString(),
+              speaker: 'System',
               text: textValue,
               time: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
               timestamp: now.getTime()
