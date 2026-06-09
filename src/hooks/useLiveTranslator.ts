@@ -3,6 +3,60 @@ import { pcmToBase64, base64ToPcm } from '../lib/audio';
 
 export type VideoMode = 'camera' | 'screen' | 'none';
 
+function detectPitch(buffer: Float32Array, sampleRate: number): number {
+  let maxVal = 0;
+  for (let i = 0; i < buffer.length; i++) {
+    const absVal = Math.abs(buffer[i]);
+    if (absVal > maxVal) {
+      maxVal = absVal;
+    }
+  }
+  
+  // Ignore quiet silence or pure background static/noise
+  if (maxVal < 0.012) {
+    return -1;
+  }
+
+  // Scan ranges corresponding to typical human speaker vocal pitches (70 Hz to 300 Hz)
+  // At 16000 Hz:
+  // Math.floor(16000 / 300) = 53 samples lag
+  // Math.floor(16000 / 70) = 228 samples lag
+  const minLag = Math.floor(sampleRate / 300);
+  const maxLag = Math.floor(sampleRate / 70);
+  
+  let bestLag = -1;
+  let bestCorrelation = -1;
+
+  for (let lag = minLag; lag <= maxLag; lag++) {
+    let correlation = 0;
+    let sumSquares1 = 0;
+    let sumSquares2 = 0;
+    
+    const limit = buffer.length - lag;
+    for (let i = 0; i < limit; i++) {
+      const v1 = buffer[i];
+      const v2 = buffer[i + lag];
+      correlation += v1 * v2;
+      sumSquares1 += v1 * v1;
+      sumSquares2 += v2 * v2;
+    }
+    
+    if (sumSquares1 > 0 && sumSquares2 > 0) {
+      const normalizedCorr = correlation / Math.sqrt(sumSquares1 * sumSquares2);
+      if (normalizedCorr > bestCorrelation) {
+        bestCorrelation = normalizedCorr;
+        bestLag = lag;
+      }
+    }
+  }
+
+  // A periodic voiced signal has high autocorrelation (typically well above 0.55 at its pitch period)
+  if (bestCorrelation > 0.62 && bestLag !== -1) {
+    return sampleRate / bestLag;
+  }
+  return -1;
+}
+
 export function useLiveTranslator() {
   const [isConnected, setIsConnected] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
@@ -22,6 +76,9 @@ export function useLiveTranslator() {
   
   const videoElementRef = useRef<HTMLVideoElement | null>(null);
   const activeSourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
+  
+  const recentPitchesRef = useRef<number[]>([]);
+  const clientDetectedGenderRef = useRef<'male' | 'female' | null>(null);
 
   const captureVideoFrame = useCallback(() => {
     if (!videoElementRef.current || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
@@ -58,6 +115,8 @@ export function useLiveTranslator() {
   const connect = useCallback(async (targetLanguageCode: string, mode: VideoMode, targetLanguageName?: string, sourceLanguageCode?: string, sourceLanguageName?: string, topics?: string, echoTargetLang?: boolean, voiceGender?: 'auto' | 'female' | 'male') => {
     try {
       setError(null);
+      recentPitchesRef.current = [];
+      clientDetectedGenderRef.current = null;
 
       // 1. Request microphone permission first so user is prompted immediately!
       let micStream: MediaStream | null = null;
@@ -178,8 +237,46 @@ export function useLiveTranslator() {
           
           processor.onaudioprocess = (e) => {
             if (ws.readyState === WebSocket.OPEN) {
-              const base64 = pcmToBase64(e.inputBuffer.getChannelData(0));
+              const channelData = e.inputBuffer.getChannelData(0);
+              const base64 = pcmToBase64(channelData);
               ws.send(JSON.stringify({ audio: base64 }));
+
+              // Client-side robust pitch & gender tracking fallback
+              try {
+                const pitch = detectPitch(channelData, 16000);
+                if (pitch > 0) {
+                  recentPitchesRef.current.push(pitch);
+                  if (recentPitchesRef.current.length > 25) {
+                    recentPitchesRef.current.shift();
+                  }
+
+                  if (recentPitchesRef.current.length >= 8) {
+                    const validPitches = recentPitchesRef.current.filter(p => p >= 70 && p <= 320);
+                    if (validPitches.length >= 6) {
+                      const sorted = [...validPitches].sort((a, b) => a - b);
+                      const median = sorted[Math.floor(sorted.length / 2)];
+
+                      let detected: 'male' | 'female' | null = null;
+                      if (median < 145) {
+                        detected = 'male';
+                      } else if (median > 165) {
+                        detected = 'female';
+                      }
+
+                      if (detected && detected !== clientDetectedGenderRef.current) {
+                        clientDetectedGenderRef.current = detected;
+                        console.log(`[Client Pitch Tracker] Detected voice pitch (median: ${median.toFixed(1)}Hz) => switching interpreter voice to ${detected.toUpperCase()}`);
+                        ws.send(JSON.stringify({
+                          type: 'detected_gender',
+                          gender: detected
+                        }));
+                      }
+                    }
+                  }
+                }
+              } catch (err) {
+                console.error("Client side pitch tracking error:", err);
+              }
             }
           };
 
@@ -286,6 +383,9 @@ export function useLiveTranslator() {
   }, []);
 
   const disconnect = useCallback(() => {
+    recentPitchesRef.current = [];
+    clientDetectedGenderRef.current = null;
+    
     // Stop and clear all active playing audio outputs
     activeSourcesRef.current.forEach(src => {
       try {
@@ -351,6 +451,16 @@ export function useLiveTranslator() {
     };
   }, [isConnected, captureVideoFrame]);
 
+  const updateTargetLanguage = useCallback((targetLanguageCode: string, targetLanguageName?: string) => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type: 'update_config',
+        targetLanguageCode,
+        targetLanguageName
+      }));
+    }
+  }, []);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => disconnect();
@@ -364,6 +474,7 @@ export function useLiveTranslator() {
     setError,
     connect,
     disconnect,
+    updateTargetLanguage,
     videoElementRef,
     analyserRef,
     transcripts,

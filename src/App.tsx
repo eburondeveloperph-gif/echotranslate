@@ -129,7 +129,7 @@ export default function App() {
   const [authChecking, setAuthChecking] = useState(true);
 
   // Live Translator Hook
-  const { isConnected, isMuted, toggleMute, error, setError, connect, disconnect, videoElementRef, transcripts, setTranscripts, analyserRef } = useLiveTranslator();
+  const { isConnected, isMuted, toggleMute, error, setError, connect, disconnect, updateTargetLanguage, videoElementRef, transcripts, setTranscripts, analyserRef } = useLiveTranslator();
   
   // State variables
   const [targetLang, setTargetLang] = useState('fil'); // Default Filipino as in the image
@@ -690,8 +690,15 @@ export default function App() {
                  </div>
                  <select 
                    value={targetLang}
-                   onChange={(e) => setTargetLang(e.target.value)}
-                   disabled={isConnected || isConnecting}
+                   onChange={(e) => {
+                      const code = e.target.value;
+                      setTargetLang(code);
+                      if (isConnected) {
+                        const targetLangName = ALL_LANGUAGES.find(l => l.code === code)?.name || code;
+                        updateTargetLanguage(code, targetLangName);
+                      }
+                    }}
+                   disabled={isConnecting}
                    className="w-full bg-[#1c1c1f] border border-white/10 rounded-lg pl-10 pr-4 py-2.5 text-sm text-neutral-200 focus:outline-none focus:border-white/20 appearance-none cursor-pointer disabled:opacity-50"
                  >
                    {ALL_LANGUAGES.map(l => (

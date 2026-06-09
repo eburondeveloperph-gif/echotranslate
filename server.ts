@@ -17,8 +17,8 @@ async function startServer() {
   wss.on("connection", async (clientWs, req) => {
     try {
       const url = new URL(req.url!, `http://${req.headers.host}`);
-      const targetLang = url.searchParams.get("targetLanguageCode") || "es";
-      const targetLangName = url.searchParams.get("targetLanguageName") || targetLang;
+      let currentTargetLang = url.searchParams.get("targetLanguageCode") || "es";
+      let currentTargetLangName = url.searchParams.get("targetLanguageName") || currentTargetLang;
       const sourceLang = url.searchParams.get("sourceLanguageCode") || "";
       const sourceLangName = url.searchParams.get("sourceLanguageName") || "";
       const topics = url.searchParams.get("topics") || "";
@@ -26,7 +26,7 @@ async function startServer() {
       const echoTarget = echoTargetParam !== null ? echoTargetParam === "true" : true;
       const voiceGender = url.searchParams.get("voiceGender") || "female";
       
-      let baseTargetLang = targetLang;
+      let baseTargetLang = currentTargetLang;
       if (baseTargetLang === "nl-BE") {
         baseTargetLang = "nl";
       }
@@ -67,24 +67,24 @@ async function startServer() {
 
       let aiInstructionsText = "";
       const baseDirectives = (langDetails: string, voiceDetails: string) => `You are an elite, hyper-accurate real-time interpreter. You must translate${langDetails} into a highly idiomatic target language.
-CRITICAL PREMISES FOR PROSODY, EXACT VOICE MIMICRY, AND SENTENCE-BY-SENTENCE DISPATCH:
-1. SENTENCE-BY-SENTENCE TRANSLATION (CRITICAL): You MUST translate strictly on a sentence-by-sentence basis. Wait for the speaker to complete a full, grammatically coherent sentence/clause before you begin speaking the translation. Do NOT start translating or emitting audio in the middle of a sentence, and never translate word-by-word or in tiny fragments of 2-3 words. Output the translation of each completed sentence as a single, continuous, fluent, and completely uninterrupted stream of speech.
-2. VOICE MIMICRY & TONAL MATCHING: Replicate the speaker's voice qualities in your output. Match the speaker's exact emotional state, vocal pitch range, tone, whisper, volume, laugh, sigh, urgency, excitement, sadness, and hesitation. If they speak with custom stress/inflection on certain words, apply corresponding stress on those words in the translation.
-3. NATURAL TEMPO & PROSODY: Mimic the pacing, conversational pauses, and speech delivery speed of the speaker perfectly. If they whisper, you MUST whisper. If they speak rapidly with high enthusiasm, you MUST speak rapidly with high enthusiasm. Do not use a generic, robotic, or monotonous tone.
-4. NATIVITY & IDIOMATIC TRANSLATION: Do not translate literally. Capture the exact semantic meaning and cultural context, expressing it through natural phrasing that a native speaker of the target language would use to convey that specific emotion and intent.
+CRITICAL PREMISES FOR PROSODY, EXACT VOICE MIMICRY, STRICT SENTENCE-BY-SENTENCE DISPATCH, AND NON-LITERAL TRANSLATION:
+1. STRICT SENTENCE-BY-SENTENCE DISPATCH (CRITICAL): You MUST translate and speak strictly on a complete, full-sentence basis. Never translate word-by-word or in tiny fragments of 2-3 words. You MUST wait until the source speaker has finished a complete, grammatically coherent sentence or semantic clause before you begin generating any translation or audio output. Do NOT start speaking or translating while the user is in the middle of a sentence. It is perfectly fine to have silent pauses while holding back to accumulate a full sentence. Release the translation of each completed sentence as a single, continuous, fluent, and completely uninterrupted stream of speech.
+2. IDIOMATIC AND NON-LITERAL TRANSLATION: You are strictly forbidden from literal, word-for-word translation. Do not mimic the exact word sequence or grammatical structure of the source language if it sounds unnatural in the target language. Listen to the entire sentence, capture its complete core meaning, cultural nuances, and intent, and then express it naturally through idiomatic phrasing that a fluent native speaker of the target language would use to convey that specific emotion and intent.
+3. VOICE MIMICRY & TONAL MATCHING: Replicate the speaker's voice qualities in your output. Match the speaker's exact emotional state, vocal pitch range, tone, whisper, volume, laugh, sigh, urgency, excitement, sadness, and hesitation. If they speak with custom stress/inflection on certain words, apply corresponding stress on those words in the translation.
+4. NATURAL TEMPO & PROSODY: Mimic the pacing, conversational pauses, and speech delivery speed of the speaker perfectly. If they whisper, you MUST whisper. If they speak rapidly with high enthusiasm, you MUST speak rapidly with high enthusiasm. Do not use a generic, robotic, or monotonous tone.
 5. SYNCHRONIZATION & COMPLETENESS: Seamlessly synchronize the delivery speed with the raw input. Under no circumstances should you cut off mid-sentence or fail to complete a translated turn.
 ${voiceDetails}`;
 
       if (voiceGender === "auto") {
         const autoVoiceMatchingLine = "5. AUTOMATIC VOICE GENDER MATCHING: You have access to the detectSpeakerGender tool. You MUST call the \"detectSpeakerGender\" function immediately as soon as you identify the speaker's gender (male or female) from the source audio. This will dynamically update your translation voice to match the gender of the speaker seamlessly.";
         aiInstructionsText = sourceLang 
-          ? baseDirectives(` from ${sourceLangName} (${sourceLang}) to ${targetLangName} (${targetLang})`, autoVoiceMatchingLine)
-          : baseDirectives(` all audio/video input to ${targetLangName} (${targetLang})`, autoVoiceMatchingLine);
+          ? baseDirectives(` from ${sourceLangName} (${sourceLang}) to ${currentTargetLangName} (${currentTargetLang})`, autoVoiceMatchingLine)
+          : baseDirectives(` all audio/video input to ${currentTargetLangName} (${currentTargetLang})`, autoVoiceMatchingLine);
       } else {
         const fixedVoiceLine = `5. VOICE GENDER MATCHING: Use a matching ${voiceGender} voice ("${currentVoiceName}") as your output voice. Deliver an output that sounds exactly as if the original speaker was a fluent, native speaker.`;
         aiInstructionsText = sourceLang 
-          ? baseDirectives(` from ${sourceLangName} (${sourceLang}) to ${targetLangName} (${targetLang})`, fixedVoiceLine)
-          : baseDirectives(` all audio/video input to ${targetLangName} (${targetLang})`, fixedVoiceLine);
+          ? baseDirectives(` from ${sourceLangName} (${sourceLang}) to ${currentTargetLangName} (${currentTargetLang})`, fixedVoiceLine)
+          : baseDirectives(` all audio/video input to ${currentTargetLangName} (${currentTargetLang})`, fixedVoiceLine);
       }
 
       if (topics) {
@@ -268,6 +268,106 @@ ${voiceDetails}`;
       clientWs.on("message", (data) => {
         try {
           const parsed = JSON.parse(data.toString());
+          
+          if (parsed.type === "detected_gender") {
+            if (voiceGender === "auto") {
+              const detected = parsed.gender;
+              const targetVoiceName = detected === "male" ? "Zephyr" : "Kore";
+              if (targetVoiceName !== currentVoiceName) {
+                currentVoiceName = targetVoiceName;
+                console.log(`[Gender Detector - Client Driven] Dynamically updated session voice to: ${targetVoiceName}`);
+                try {
+                  (session as any).conn.send(JSON.stringify({
+                    setup: {
+                      model: "gemini-3.5-live-translate-preview",
+                      config: {
+                        speechConfig: {
+                          voiceConfig: {
+                            prebuiltVoiceConfig: {
+                              voiceName: targetVoiceName
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }));
+                } catch (sendErr) {
+                  console.error("Error communicating client-driven voice update to Gemini:", sendErr);
+                }
+                clientWs.send(JSON.stringify({ autoDetectedGender: detected }));
+              }
+            }
+            return;
+          }
+          
+          if (parsed.type === "update_config") {
+            const newTargetLang = parsed.targetLanguageCode;
+            const newTargetLangName = parsed.targetLanguageName || newTargetLang;
+            
+            currentTargetLang = newTargetLang;
+            currentTargetLangName = newTargetLangName;
+            
+            let baseNewTargetLang = newTargetLang;
+            if (baseNewTargetLang === "nl-BE") {
+              baseNewTargetLang = "nl";
+            }
+            
+            const newTranslationConfig: any = {
+              targetLanguageCode: baseNewTargetLang,
+              echoTargetLanguage: echoTarget
+            };
+            
+            if (sourceLang) {
+              newTranslationConfig.sourceLanguageCode = sourceLang;
+            }
+            
+            // Re-render instructions for the new language
+            let newAiInstructionsText = "";
+            if (voiceGender === "auto") {
+              const autoVoiceMatchingLine = "5. AUTOMATIC VOICE GENDER MATCHING: You have access to the detectSpeakerGender tool. You MUST call the \"detectSpeakerGender\" function immediately as soon as you identify the speaker's gender (male or female) from the source audio. This will dynamically update your translation voice to match the gender of the speaker seamlessly.";
+              newAiInstructionsText = sourceLang 
+                ? baseDirectives(` from ${sourceLangName} (${sourceLang}) to ${currentTargetLangName} (${currentTargetLang})`, autoVoiceMatchingLine)
+                : baseDirectives(` all audio/video input to ${currentTargetLangName} (${currentTargetLang})`, autoVoiceMatchingLine);
+            } else {
+              const fixedVoiceLine = `5. VOICE GENDER MATCHING: Use a matching ${voiceGender} voice ("${currentVoiceName}") as your output voice. Deliver an output that sounds exactly as if the original speaker was a fluent, native speaker.`;
+              newAiInstructionsText = sourceLang 
+                ? baseDirectives(` from ${sourceLangName} (${sourceLang}) to ${currentTargetLangName} (${currentTargetLang})`, fixedVoiceLine)
+                : baseDirectives(` all audio/video input to ${currentTargetLangName} (${currentTargetLang})`, fixedVoiceLine);
+            }
+            
+            if (topics) {
+               newAiInstructionsText += `\nAdditional Context/Topics:\n${topics}`;
+            }
+
+            console.log(`[Config Updater] Mid-stream updating target language to: ${currentTargetLangName} (${currentTargetLang})`);
+            
+            // Send SETUP frame with updated translationConfig and systemInstruction
+            (session as any).conn.send(JSON.stringify({
+              setup: {
+                model: "gemini-3.5-live-translate-preview",
+                config: {
+                  responseModalities: ["AUDIO", "TEXT"],
+                  speechConfig: {
+                    voiceConfig: {
+                      prebuiltVoiceConfig: {
+                        voiceName: currentVoiceName
+                      }
+                    }
+                  },
+                  systemInstruction: {
+                    role: "system",
+                    parts: [{ text: newAiInstructionsText }]
+                  },
+                  tools: tools as any,
+                  translationConfig: newTranslationConfig,
+                  outputAudioTranscription: {},
+                  inputAudioTranscription: {}
+                }
+              }
+            }));
+            return;
+          }
+
           if (parsed.audio) {
             session.sendRealtimeInput({
               media: {
