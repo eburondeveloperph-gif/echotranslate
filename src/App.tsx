@@ -297,7 +297,7 @@ export default function App() {
       <div className="flex-1 flex flex-col relative px-4 lg:px-12 py-6 lg:py-8 overflow-hidden h-screen">
         
         {/* Responsive Header */}
-        <header className="flex items-center justify-between border-b border-white/5 pb-4 mb-6 shrink-0 z-20">
+        <header className="sticky top-0 bg-[#111111]/95 backdrop-blur-md z-20 pt-6 lg:pt-8 -mt-6 lg:-mt-8 px-4 lg:px-12 -mx-4 lg:-mx-12 pb-4 mb-6 border-b border-white/5 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-blue-600/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
               <Shield className="w-4 h-4" />
