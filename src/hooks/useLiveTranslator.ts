@@ -54,7 +54,7 @@ export function useLiveTranslator() {
     });
   }, []);
 
-  const connect = useCallback(async (targetLanguageCode: string, mode: VideoMode, targetLanguageName?: string, sourceLanguageCode?: string, sourceLanguageName?: string, topics?: string, echoTargetLang?: boolean) => {
+  const connect = useCallback(async (targetLanguageCode: string, mode: VideoMode, targetLanguageName?: string, sourceLanguageCode?: string, sourceLanguageName?: string, topics?: string, echoTargetLang?: boolean, voiceGender?: 'female' | 'male') => {
     try {
       setError(null);
 
@@ -102,6 +102,9 @@ export function useLiveTranslator() {
       }
       if (echoTargetLang !== undefined) {
         wsUrl.searchParams.set('echoTargetLanguage', String(echoTargetLang));
+      }
+      if (voiceGender) {
+        wsUrl.searchParams.set('voiceGender', voiceGender);
       }
       
       const ws = new WebSocket(wsUrl.toString());

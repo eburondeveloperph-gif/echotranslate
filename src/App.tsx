@@ -142,6 +142,9 @@ export default function App() {
   const [customWsUrl, setCustomWsUrl] = useState(() => localStorage.getItem('custom_ws_url') || '');
   const [isVideoFullScreen, setIsVideoFullScreen] = useState(false);
   const [topics, setTopics] = useState("carry over the emotional nuance to the output audio");
+  const [voiceGender, setVoiceGender] = useState<'female' | 'male'>(() => {
+    return (localStorage.getItem('translation_voice_gender') as 'female' | 'male') || 'female';
+  });
 
   // Firebase History State
   const [savedSessions, setSavedSessions] = useState<any[]>([]);
@@ -267,7 +270,7 @@ export default function App() {
       setActiveSessionId(null); // Clear viewing when initiating live stream
       const targetLangName = ALL_LANGUAGES.find(l => l.code === targetLang)?.name;
       const sourceLangName = ALL_LANGUAGES.find(l => l.code === sourceLang)?.name;
-      await connect(targetLang, videoMode, targetLangName, sourceLang, sourceLangName, topics, echoTargetLang);
+      await connect(targetLang, videoMode, targetLangName, sourceLang, sourceLangName, topics, echoTargetLang, voiceGender);
       setIsConnecting(false);
     }
   };
@@ -711,6 +714,44 @@ export default function App() {
                >
                  <div className={`w-4 h-4 rounded-full bg-white transition-transform ${echoTargetLang ? 'translate-x-4' : 'translate-x-0'}`}></div>
                </button>
+            </div>
+
+            {/* Translation voice gender selector */}
+            <div className="flex flex-col gap-2.5 mt-2 pt-6 border-t border-white/5">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-neutral-200">Translation Voice Gender</span>
+                  <span className="text-[11px] text-neutral-500 font-medium">Matches source speaker</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 bg-[#1c1c1f] p-1 rounded-lg border border-white/5">
+                  <button 
+                    disabled={isConnected || isConnecting}
+                    onClick={() => {
+                      setVoiceGender('female');
+                      localStorage.setItem('translation_voice_gender', 'female');
+                    }}
+                    className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-md text-xs font-medium transition-all ${
+                      voiceGender === 'female' 
+                        ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20 shadow-sm font-semibold' 
+                        : 'text-neutral-400 hover:text-white hover:bg-white/5 disabled:opacity-50'
+                    }`}
+                  >
+                    <span>Female (Kore)</span>
+                  </button>
+                  <button 
+                    disabled={isConnected || isConnecting}
+                    onClick={() => {
+                      setVoiceGender('male');
+                      localStorage.setItem('translation_voice_gender', 'male');
+                    }}
+                    className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-md text-xs font-medium transition-all ${
+                      voiceGender === 'male' 
+                        ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20 shadow-sm font-semibold' 
+                        : 'text-neutral-400 hover:text-white hover:bg-white/5 disabled:opacity-50'
+                    }`}
+                  >
+                    <span>Male (Zephyr)</span>
+                  </button>
+                </div>
             </div>
 
             {/* Custom Backend URL */}

@@ -24,6 +24,7 @@ async function startServer() {
       const topics = url.searchParams.get("topics") || "";
       const echoTargetParam = url.searchParams.get("echoTargetLanguage");
       const echoTarget = echoTargetParam !== null ? echoTargetParam === "true" : true;
+      const voiceGender = url.searchParams.get("voiceGender") || "female";
       
       let baseTargetLang = targetLang;
       if (baseTargetLang === "nl-BE") {
@@ -39,9 +40,12 @@ async function startServer() {
         translationConfig.sourceLanguageCode = sourceLang;
       }
 
+      // Match the correct prebuilt voice based on the selected gender
+      const voiceName = voiceGender === "male" ? "Zephyr" : "Kore";
+
       let aiInstructionsText = sourceLang 
-        ? `You are an elite, hyper-accurate real-time interpreter. Translate from ${sourceLangName} (${sourceLang}) to highly idiomatic ${targetLangName} (${targetLang}).\nCore directives:\n1. NATIVITY & IDIOMS: Do not translate word-by-word. Extract the core meaning and express it using the most natural, native phrasing, idioms, and grammatical structures characteristic of ${targetLangName}.\n2. PROSODY & EXPRESSION: Flawlessly mimic the speaker's nuance, tone, rhythm, speed, pacing, and emotion. Maintain exact emotional resonance. For example, if the speaker speaks quickly, slowly, emotionally, excitedly, sadly, angrily, or whispers, capture and reproduce that exact style, speed, mood, and delivery in your translated audio output.\n3. CLARITY & ACCURACY: Ensure maximum clarity and absolute semantic accuracy. Prioritize coherent, fully formed thoughts over literal fragments, even if you remain 3 to 4 seconds behind to capture full context.\n4. SYNCHRONIZATION: Seamlessly sync your speaking speed with the source audio.\n5. COMPLETENESS: Always finish your translations completely. Do not cut off mid-sentence or overrun conversational turns. Wait for logical breaks before completing your thought.\n6. VOICE GENDER MATCHING: By default, use a female voice as the translation voice audio. However, if the source speaker is male, use a male voice for the translation.\nDeliver an output that sounds exactly as if the original speaker was a fluent, native ${targetLangName} speaker.`
-        : `You are an elite, hyper-accurate real-time interpreter. Translate all audio/video input into highly idiomatic ${targetLangName} (${targetLang}).\nCore directives:\n1. NATIVITY & IDIOMS: Do not translate word-by-word. Extract the core meaning and express it using the most natural, native phrasing, idioms, and grammatical structures characteristic of ${targetLangName}.\n2. PROSODY & EXPRESSION: Flawlessly mimic the speaker's nuance, tone, rhythm, speed, pacing, and emotion. Maintain exact emotional resonance. For example, if the speaker speaks quickly, slowly, emotionally, excitedly, sadly, angrily, or whispers, capture and reproduce that exact style, speed, mood, and delivery in your translated audio output.\n3. CLARITY & ACCURACY: Ensure maximum clarity and absolute semantic accuracy. Prioritize coherent, fully formed thoughts over literal fragments, even if you remain 3 to 4 seconds behind to capture full context.\n4. SYNCHRONIZATION: Seamlessly sync your speaking speed with the source audio.\n5. COMPLETENESS: Always finish your translations completely. Do not cut off mid-sentence or overrun conversational turns. Wait for logical breaks before completing your thought.\n6. VOICE GENDER MATCHING: By default, use a female voice as the translation voice audio. However, if the source speaker is male, use a male voice for the translation.\nDeliver an output that sounds exactly as if the original speaker was a fluent, native ${targetLangName} speaker.`;
+        ? `You are an elite, hyper-accurate real-time interpreter. Translate from ${sourceLangName} (${sourceLang}) to highly idiomatic ${targetLangName} (${targetLang}).\nCore directives:\n1. NATIVITY & IDIOMS: Do not translate word-by-word. Extract the core meaning and express it using the most natural, native phrasing, idioms, and grammatical structures characteristic of ${targetLangName}.\n2. PROSODY & EXPRESSION: Flawlessly mimic the speaker's nuance, tone, rhythm, speed, pacing, and emotion. Maintain exact emotional resonance. For example, if the speaker speaks quickly, slowly, emotionally, excitedly, sadly, angrily, or whispers, capture and reproduce that exact style, speed, mood, and delivery in your translated audio output.\n3. CLARITY & ACCURACY: Ensure maximum clarity and absolute semantic accuracy. Prioritize coherent, fully formed thoughts over literal fragments, even if you remain 3 to 4 seconds behind to capture full context.\n4. SYNCHRONIZATION: Seamlessly sync your speaking speed with the source audio.\n5. COMPLETENESS: Always finish your translations completely. Do not cut off mid-sentence or overrun conversational turns. Wait for logical breaks before completing your thought.\n6. VOICE GENDER MATCHING: Use a matching ${voiceGender} voice ("${voiceName}") as your output voice.\nDeliver an output that sounds exactly as if the original speaker was a fluent, native ${targetLangName} speaker.`
+        : `You are an elite, hyper-accurate real-time interpreter. Translate all audio/video input into highly idiomatic ${targetLangName} (${targetLang}).\nCore directives:\n1. NATIVITY & IDIOMS: Do not translate word-by-word. Extract the core meaning and express it using the most natural, native phrasing, idioms, and grammatical structures characteristic of ${targetLangName}.\n2. PROSODY & EXPRESSION: Flawlessly mimic the speaker's nuance, tone, rhythm, speed, pacing, and emotion. Maintain exact emotional resonance. For example, if the speaker speaks quickly, slowly, emotionally, excitedly, sadly, angrily, or whispers, capture and reproduce that exact style, speed, mood, and delivery in your translated audio output.\n3. CLARITY & ACCURACY: Ensure maximum clarity and absolute semantic accuracy. Prioritize coherent, fully formed thoughts over literal fragments, even if you remain 3 to 4 seconds behind to capture full context.\n4. SYNCHRONIZATION: Seamlessly sync your speaking speed with the source audio.\n5. COMPLETENESS: Always finish your translations completely. Do not cut off mid-sentence or overrun conversational turns. Wait for logical breaks before completing your thought.\n6. VOICE GENDER MATCHING: Use a matching ${voiceGender} voice ("${voiceName}") as your output voice.\nDeliver an output that sounds exactly as if the original speaker was a fluent, native ${targetLangName} speaker.`;
 
       if (topics) {
          aiInstructionsText += `\nAdditional Context/Topics:\n${topics}`;
@@ -51,6 +55,13 @@ async function startServer() {
         model: "gemini-3.5-live-translate-preview",
         config: {
           responseModalities: ["AUDIO" as any, "TEXT" as any],
+          speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: {
+                voiceName: voiceName
+              }
+            }
+          },
           systemInstruction: {
             role: "system",
             parts: [{ text: aiInstructionsText }]
