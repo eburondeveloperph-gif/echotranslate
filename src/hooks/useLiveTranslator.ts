@@ -62,6 +62,7 @@ export function useLiveTranslator() {
   const [isMuted, setIsMuted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [transcripts, setTranscripts] = useState<Array<{ id: string; speaker: string; text: string; time: string; timestamp: number }>>([]);
+  const [isTranslating, setIsTranslating] = useState(false);
   
   const wsRef = useRef<WebSocket | null>(null);
   const inputCtxRef = useRef<AudioContext | null>(null);
@@ -76,9 +77,23 @@ export function useLiveTranslator() {
   
   const videoElementRef = useRef<HTMLVideoElement | null>(null);
   const activeSourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
+  const outputAnalyserRef = useRef<AnalyserNode | null>(null);
+  const smoothedSpeakerRmsRef = useRef<number>(0);
+  const speakerPlayHangoverRef = useRef<number>(0);
   
   const recentPitchesRef = useRef<number[]>([]);
   const clientDetectedGenderRef = useRef<'male' | 'female' | null>(null);
+  const translatingTimeoutRef = useRef<any>(null);
+
+  const triggerTranslating = useCallback(() => {
+    setIsTranslating(true);
+    if (translatingTimeoutRef.current) {
+      clearTimeout(translatingTimeoutRef.current);
+    }
+    translatingTimeoutRef.current = setTimeout(() => {
+      setIsTranslating(false);
+    }, 12000); // 12 seconds auto-reset
+  }, []);
 
   const captureVideoFrame = useCallback(() => {
     if (!videoElementRef.current || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
@@ -176,6 +191,12 @@ export function useLiveTranslator() {
       inputCtxRef.current = inputAudioCtx;
       outputCtxRef.current = outputAudioCtx;
 
+      // Initialize output analyzer for robust acoustic echo cancellation/suppression
+      const outputAnalyser = outputAudioCtx.createAnalyser();
+      outputAnalyser.fftSize = 256;
+      outputAnalyser.connect(outputAudioCtx.destination);
+      outputAnalyserRef.current = outputAnalyser;
+
       // Ensure contexts are running
       if (inputAudioCtx.state === 'suspended') await inputAudioCtx.resume();
       if (outputAudioCtx.state === 'suspended') await outputAudioCtx.resume();
@@ -238,8 +259,77 @@ export function useLiveTranslator() {
           processor.onaudioprocess = (e) => {
             if (ws.readyState === WebSocket.OPEN) {
               const channelData = e.inputBuffer.getChannelData(0);
+
+              // 1. Calculate the real-time speaker playback energy (RMS) from output processor outputAnalyser
+              let speakerRms = 0;
+              if (outputAnalyserRef.current && outputCtxRef.current && outputCtxRef.current.state === 'running') {
+                const bufferLength = outputAnalyserRef.current.fftSize;
+                const dataArray = new Float32Array(bufferLength);
+                outputAnalyserRef.current.getFloatTimeDomainData(dataArray);
+                
+                let sum = 0;
+                for (let i = 0; i < bufferLength; i++) {
+                  sum += dataArray[i] * dataArray[i];
+                }
+                speakerRms = Math.sqrt(sum / bufferLength);
+              }
+
+              // Update a running smoothed amplitude and a playout hangover (trailing decay window)
+              if (speakerRms > 0.004) {
+                smoothedSpeakerRmsRef.current = Math.max(smoothedSpeakerRmsRef.current * 0.5 + speakerRms * 0.5, speakerRms);
+                speakerPlayHangoverRef.current = 2; // Hold hangover (~512ms safety buffer)
+              } else {
+                if (speakerPlayHangoverRef.current > 0) {
+                  speakerPlayHangoverRef.current--;
+                  smoothedSpeakerRmsRef.current *= 0.75;
+                } else {
+                  smoothedSpeakerRmsRef.current = 0;
+                }
+              }
+
+              const isSpeakerActive = speakerPlayHangoverRef.current > 0 || speakerRms > 0.004;
+
+              // 2. Calculate microphone input RMS
+              let micSum = 0;
+              for (let i = 0; i < channelData.length; i++) {
+                micSum += channelData[i] * channelData[i];
+              }
+              const micRms = Math.sqrt(micSum / channelData.length);
+
+              // 3. Separate/suppress speaker loop feedback from the captured microphone stream (Acoustic Echo Suppression)
+              let isEchoSuppressed = false;
+              if (isSpeakerActive) {
+                // Adaptive separation threshold based on estimated acoustic coupling factor.
+                // Typical device speaker-to-mic feedback leak is roughly 25%-40% of standard output.
+                const suppressionThreshold = (smoothedSpeakerRmsRef.current * 0.38) + 0.012;
+                
+                if (micRms < suppressionThreshold) {
+                  isEchoSuppressed = true;
+                  for (let i = 0; i < channelData.length; i++) {
+                    channelData[i] *= 0.002; // Attenuate audio loop leak by ~54dB (pristine digital separation)
+                  }
+                } else {
+                  // User vocal override (Double-talk / Interruption)
+                  console.log(`[Acoustic Separator] User Interruption Detected! Mic RMS: ${micRms.toFixed(3)} > Threshold: ${suppressionThreshold.toFixed(3)}`);
+                }
+              }
+
               const base64 = pcmToBase64(channelData);
               ws.send(JSON.stringify({ audio: base64 }));
+
+              // Simple voice activity detection for improved perceived feedback speed
+              if (!isMuted && !isEchoSuppressed) {
+                let hasActiveVocalSpeech = false;
+                for (let i = 0; i < channelData.length; i++) {
+                  if (Math.abs(channelData[i]) > 0.015) {
+                    hasActiveVocalSpeech = true;
+                    break;
+                  }
+                }
+                if (hasActiveVocalSpeech) {
+                  triggerTranslating();
+                }
+              }
 
               // Client-side robust pitch & gender tracking fallback
               try {
@@ -297,6 +387,13 @@ export function useLiveTranslator() {
         try {
           const msg = JSON.parse(event.data);
           
+          if (msg.audio) {
+            setIsTranslating(false);
+            if (translatingTimeoutRef.current) {
+              clearTimeout(translatingTimeoutRef.current);
+            }
+          }
+
           if (msg.audio && outputCtxRef.current) {
             const outputCtx = outputCtxRef.current;
             if (outputCtx.state === 'suspended') {
@@ -308,7 +405,11 @@ export function useLiveTranslator() {
             
             const source = outputCtx.createBufferSource();
             source.buffer = buffer;
-            source.connect(outputCtx.destination);
+            if (outputAnalyserRef.current) {
+              source.connect(outputAnalyserRef.current);
+            } else {
+              source.connect(outputCtx.destination);
+            }
             
             let startTime = nextStartTimeRef.current;
             if (startTime < outputCtx.currentTime) {
@@ -328,6 +429,17 @@ export function useLiveTranslator() {
           if (msg.text) {
             const now = new Date();
             let textValue = typeof msg.text === 'string' ? msg.text : JSON.stringify(msg.text);
+            
+            const isUser = msg.speaker === 'User' || msg.speaker === 'en';
+            if (isUser) {
+              triggerTranslating();
+            } else if (msg.speaker === 'Agent' || msg.speaker === 'Model') {
+              setIsTranslating(false);
+              if (translatingTimeoutRef.current) {
+                clearTimeout(translatingTimeoutRef.current);
+              }
+            }
+
             setTranscripts(prev => [...prev, {
               id: Math.random().toString(),
               speaker: msg.speaker || 'Speaker',
@@ -386,6 +498,12 @@ export function useLiveTranslator() {
     recentPitchesRef.current = [];
     clientDetectedGenderRef.current = null;
     
+    if (translatingTimeoutRef.current) {
+      clearTimeout(translatingTimeoutRef.current);
+      translatingTimeoutRef.current = null;
+    }
+    setIsTranslating(false);
+    
     // Stop and clear all active playing audio outputs
     activeSourcesRef.current.forEach(src => {
       try {
@@ -433,6 +551,9 @@ export function useLiveTranslator() {
       outputCtxRef.current.close();
       outputCtxRef.current = null;
     }
+    outputAnalyserRef.current = null;
+    smoothedSpeakerRmsRef.current = 0;
+    speakerPlayHangoverRef.current = 0;
     setIsMuted(false);
     setIsConnected(false);
   }, []);
@@ -478,6 +599,7 @@ export function useLiveTranslator() {
     videoElementRef,
     analyserRef,
     transcripts,
-    setTranscripts
+    setTranscripts,
+    isTranslating
   };
 }

@@ -129,7 +129,7 @@ export default function App() {
   const [authChecking, setAuthChecking] = useState(true);
 
   // Live Translator Hook
-  const { isConnected, isMuted, toggleMute, error, setError, connect, disconnect, updateTargetLanguage, videoElementRef, transcripts, setTranscripts, analyserRef } = useLiveTranslator();
+  const { isConnected, isMuted, toggleMute, error, setError, connect, disconnect, updateTargetLanguage, videoElementRef, transcripts, setTranscripts, analyserRef, isTranslating } = useLiveTranslator();
   
   // State variables
   const [targetLang, setTargetLang] = useState('fil'); // Default Filipino as in the image
@@ -260,7 +260,7 @@ export default function App() {
   useEffect(() => {
     inputEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     outputEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [inputTranscripts, outputTranscripts]);
+  }, [inputTranscripts, outputTranscripts, isTranslating]);
 
   const handleToggleConnect = async () => {
     if (isConnected) {
@@ -492,12 +492,31 @@ export default function App() {
               </div>
               <div className="flex-1 overflow-y-auto pb-12 sm:pb-32 custom-scrollbar pr-2 space-y-4">
                 {outputTranscripts.length === 0 ? (
-                  <div className="flex items-center gap-3">
-                    <span className="bg-[#27272a] text-[#d4d4d8] text-xs font-semibold px-2 py-1 rounded">
-                      Translated
-                    </span>
-                    <span className="opacity-50 text-md sm:text-lg">Translation will appear here...</span>
-                  </div>
+                  isTranslating ? (
+                    <div className="flex flex-col gap-4">
+                      <div className="flex flex-col gap-2 p-3 sm:p-4 bg-blue-600/10 border border-blue-500/20 rounded-xl transition-all animate-pulse">
+                        <div className="flex items-center gap-2">
+                          <span className="bg-blue-500/20 text-blue-400 border border-blue-500/35 text-[10px] sm:text-xs font-semibold px-2 py-0.5 rounded flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-ping"></span>
+                            Translating
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <div className="w-2 h-2 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+                          <div className="w-2 h-2 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+                          <div className="w-2 h-2 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+                          <span className="text-xs text-neutral-400 font-medium ml-1.5">Beatrice is listening and translating...</span>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-3">
+                      <span className="bg-[#27272a] text-[#d4d4d8] text-xs font-semibold px-2 py-1 rounded">
+                        Translated
+                      </span>
+                      <span className="opacity-50 text-md sm:text-lg">Translation will appear here...</span>
+                    </div>
+                  )
                 ) : (
                   <div className="flex flex-col gap-4">
                     {outputTranscripts.map((t) => (
@@ -511,6 +530,22 @@ export default function App() {
                         <p className="text-neutral-200 font-light leading-relaxed text-md sm:text-lg">{t.text}</p>
                       </div>
                     ))}
+                    {isTranslating && (
+                      <div className="flex flex-col gap-2 p-3 sm:p-4 bg-blue-600/10 border border-blue-500/20 rounded-xl transition-all animate-pulse">
+                        <div className="flex items-center gap-2">
+                          <span className="bg-blue-500/20 text-blue-400 border border-blue-500/35 text-[10px] sm:text-xs font-semibold px-2 py-0.5 rounded flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-ping"></span>
+                            Translating
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <div className="w-2 h-2 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+                          <div className="w-2 h-2 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+                          <div className="w-2 h-2 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+                          <span className="text-xs text-neutral-400 font-medium ml-1.5">Beatrice is listening and translating...</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
                 <div ref={outputEndRef} />
