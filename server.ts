@@ -106,13 +106,10 @@ ${voiceDetails}`;
             model: "gemini-3.5-live-translate-preview",
             config: {
               responseModalities: ["AUDIO" as any, "TEXT" as any],
-              generationConfig: {
-                temperature: 0.5,
-                topP: 0.9,
-                candidateCount: 1,
-                presencePenalty: 0.2,
-                frequencyPenalty: 0.2
-              } as any,
+              temperature: 0.5,
+              topP: 0.9,
+              presencePenalty: 0.2,
+              frequencyPenalty: 0.2,
               speechConfig: {
                 voiceConfig: {
                   prebuiltVoiceConfig: {
@@ -128,7 +125,7 @@ ${voiceDetails}`;
               translationConfig: translationConfig,
               outputAudioTranscription: {},
               inputAudioTranscription: {}
-            },
+            } as any,
             callbacks: {
               onmessage: (message: LiveServerMessage) => {
                 try {
