@@ -21,6 +21,7 @@ export function useLiveTranslator() {
   const nextStartTimeRef = useRef<number>(0);
   
   const videoElementRef = useRef<HTMLVideoElement | null>(null);
+  const activeSourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
 
   const captureVideoFrame = useCallback(() => {
     if (!videoElementRef.current || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
@@ -177,8 +178,17 @@ export function useLiveTranslator() {
           
           processor.onaudioprocess = (e) => {
             if (ws.readyState === WebSocket.OPEN) {
-              const base64 = pcmToBase64(e.inputBuffer.getChannelData(0));
-              ws.send(JSON.stringify({ audio: base64 }));
+              // Echo feedback defense: Check if we are currently playing back translated audio
+              // If we are playing translation audio, we do NOT send microphone audio chunks to the server.
+              // This completely prevents the model's output voice from being fed back to the mic and self-interrupting the model!
+              const isPlayingTranslation = outputCtxRef.current
+                ? (nextStartTimeRef.current + 0.150) > outputCtxRef.current.currentTime
+                : false;
+
+              if (!isPlayingTranslation) {
+                const base64 = pcmToBase64(e.inputBuffer.getChannelData(0));
+                ws.send(JSON.stringify({ audio: base64 }));
+              }
             }
           };
 
@@ -217,6 +227,12 @@ export function useLiveTranslator() {
               startTime = outputCtx.currentTime;
             }
             
+            // Track playing audio source for interruption support
+            activeSourcesRef.current.add(source);
+            source.onended = () => {
+              activeSourcesRef.current.delete(source);
+            };
+
             source.start(startTime);
             nextStartTimeRef.current = startTime + buffer.duration;
           }
@@ -247,7 +263,13 @@ export function useLiveTranslator() {
 
           if (msg.interrupted) {
             nextStartTimeRef.current = outputCtxRef.current?.currentTime || 0;
-            // Depending on complexity, we might want to track current nodes and stop them
+            // Instantly stop and discard all currently playing and scheduled sources to avoid voice overlaps
+            activeSourcesRef.current.forEach(src => {
+              try {
+                src.stop();
+              } catch (err) {}
+            });
+            activeSourcesRef.current.clear();
           }
         } catch (e) {
           console.error("Error receiving ws message", e);
@@ -273,6 +295,14 @@ export function useLiveTranslator() {
   }, []);
 
   const disconnect = useCallback(() => {
+    // Stop and clear all active playing audio outputs
+    activeSourcesRef.current.forEach(src => {
+      try {
+        src.stop();
+      } catch (err) {}
+    });
+    activeSourcesRef.current.clear();
+
     if (wsRef.current) {
       wsRef.current.close();
       wsRef.current = null;
