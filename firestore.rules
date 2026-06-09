@@ -1,0 +1,38 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Global helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidSessionHistory(data) {
+      return data.userId == request.auth.uid 
+        && data.id is string
+        && data.id.size() <= 128
+        && data.targetLang is string
+        && data.targetLang.size() <= 20
+        && data.sourceLang is string
+        && data.sourceLang.size() <= 20
+        && data.createdAt == request.time
+        && data.items is list;
+    }
+
+    // Match rules for translation history
+    match /history/{sessionId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidId(sessionId) && isValidSessionHistory(request.resource.data);
+      allow update: if false; // Invariant: histories are write-once logs and cannot be modified
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+  }
+}

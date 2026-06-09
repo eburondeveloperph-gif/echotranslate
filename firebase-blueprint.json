@@ -1,0 +1,38 @@
+{
+  "entities": {
+    "historyItem": {
+      "title": "History Item",
+      "description": "A single speaker utterance in the transcript",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "speaker": { "type": "string" },
+        "text": { "type": "string" },
+        "time": { "type": "string" },
+        "timestamp": { "type": "number" }
+      },
+      "required": ["id", "speaker", "text", "time", "timestamp"]
+    },
+    "sessionHistory": {
+      "title": "Session History",
+      "description": "A saved translation session transcript and settings",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "targetLang": { "type": "string" },
+        "sourceLang": { "type": "string" },
+        "topics": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "items": { "type": "array" }
+      },
+      "required": ["id", "userId", "targetLang", "sourceLang", "createdAt", "items"]
+    }
+  },
+  "firestore": {
+    "history/{sessionId}": {
+      "schema": "sessionHistory",
+      "description": "Collection of translation session histories"
+    }
+  }
+}
