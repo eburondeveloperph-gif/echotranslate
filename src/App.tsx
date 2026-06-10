@@ -270,7 +270,7 @@ export default function App() {
       setActiveSessionId(null); // Clear viewing when initiating live stream
       const targetLangName = ALL_LANGUAGES.find(l => l.code === targetLang)?.name;
       const sourceLangName = ALL_LANGUAGES.find(l => l.code === sourceLang)?.name;
-      await connect(targetLang, videoMode, targetLangName, sourceLang, sourceLangName, topics, echoTargetLang, voiceGender);
+      await connect(targetLang, videoMode, targetLangName, sourceLang, sourceLangName, topics, echoTargetLang, voiceGender, customWsUrl);
       setIsConnecting(false);
     }
   };

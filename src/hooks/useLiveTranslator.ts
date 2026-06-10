@@ -127,7 +127,7 @@ export function useLiveTranslator() {
     });
   }, []);
 
-  const connect = useCallback(async (targetLanguageCode: string, mode: VideoMode, targetLanguageName?: string, sourceLanguageCode?: string, sourceLanguageName?: string, topics?: string, echoTargetLang?: boolean, voiceGender?: 'auto' | 'female' | 'male') => {
+  const connect = useCallback(async (targetLanguageCode: string, mode: VideoMode, targetLanguageName?: string, sourceLanguageCode?: string, sourceLanguageName?: string, topics?: string, echoTargetLang?: boolean, voiceGender?: 'auto' | 'female' | 'male', customWsUrl?: string) => {
     try {
       setError(null);
       recentPitchesRef.current = [];
@@ -150,12 +150,11 @@ export function useLiveTranslator() {
       }
       
       let wsUrl: URL;
-      const customWsUrl = localStorage.getItem('custom_ws_url');
       if (customWsUrl && customWsUrl.trim() !== '') {
         try {
           wsUrl = new URL(customWsUrl);
         } catch (e) {
-          throw new Error("Invalid custom WebSocket URL format in Settings. Make sure it starts with ws:// or wss://");
+          throw new Error("Invalid custom WebSocket URL format. Make sure it starts with ws:// or wss://");
         }
       } else {
         wsUrl = new URL('/live', window.location.href);
