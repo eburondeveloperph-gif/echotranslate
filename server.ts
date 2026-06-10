@@ -56,14 +56,14 @@ async function startServer() {
               functionDeclarations: [
                 {
                   name: "detectSpeakerGender",
-                  description: "Call this immediately when you hear the voice of the primary source speaker (the human user speaking the input audio) and determine their gender (whether they sound male or female based on audio pitch, vocal tone, or style). This matches the translation voice gender with the source speaker gender dynamically.",
+                  description: "CRITICAL: Call this function IMMEDIATELY (within the first 3-5 seconds of hearing the speaker) to establish the correct vocal persona. Identify if the source speaker (the human providing input) sounds 'male' or 'female' based on their pitch, timbre, and vocal resonance. This allows the system to switch the output translation prebuilt voice to match the speaker's gender for maximum native immersion.",
                   parameters: {
                     type: "OBJECT",
                     properties: {
                       gender: {
                         type: "STRING",
                         enum: ["male", "female"],
-                        description: "The auto-detected gender, either 'male' or 'female'."
+                        description: "The identified gender of the source speaker."
                       }
                     },
                     required: ["gender"]
@@ -85,7 +85,7 @@ CRITICAL PREMISES FOR PROSODY, NATIVE FLUENCY, CULTURAL LOCALIZATION, AND ROBUST
 ${voiceDetails}`;
 
           if (voiceGender === "auto") {
-            const autoVoiceMatchingLine = "7. AUTOMATIC VOICE GENDER MATCHING: You have access to the detectSpeakerGender tool. You MUST call the \"detectSpeakerGender\" function immediately as soon as you identify the speaker's gender (male or female) from the source audio. This will dynamically update your translation voice to match the gender of the speaker seamlessly.";
+            const autoVoiceMatchingLine = `7. AUTOMATIC VOICE GENDER MATCHING: You have access to the "detectSpeakerGender" tool. You MUST call this function as soon as you identify the speaker's gender. This ensures the output voice (${currentVoiceName}) always matches the speaker. Treat this as a top-priority task for maintaining persona consistency.`;
             aiInstructionsText = sourceLang 
               ? baseDirectives(` from ${sourceLangName} (${sourceLang}) to ${currentTargetLangName} (${currentTargetLang})`, autoVoiceMatchingLine)
               : baseDirectives(` all audio/video input to ${currentTargetLangName} (${currentTargetLang})`, autoVoiceMatchingLine);

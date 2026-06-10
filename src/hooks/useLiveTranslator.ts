@@ -13,16 +13,16 @@ function detectPitch(buffer: Float32Array, sampleRate: number): number {
   }
   
   // Ignore quiet silence or pure background static/noise
-  if (maxVal < 0.012) {
+  if (maxVal < 0.015) {
     return -1;
   }
 
-  // Scan ranges corresponding to typical human speaker vocal pitches (70 Hz to 300 Hz)
+  // Scan ranges corresponding to typical human speaker vocal pitches (75 Hz to 320 Hz)
   // At 16000 Hz:
-  // Math.floor(16000 / 300) = 53 samples lag
-  // Math.floor(16000 / 70) = 228 samples lag
-  const minLag = Math.floor(sampleRate / 300);
-  const maxLag = Math.floor(sampleRate / 70);
+  // Math.floor(16000 / 320) = 50 samples lag
+  // Math.floor(16000 / 75) = 213 samples lag
+  const minLag = Math.floor(sampleRate / 320);
+  const maxLag = Math.floor(sampleRate / 75);
   
   let bestLag = -1;
   let bestCorrelation = -1;
@@ -50,8 +50,8 @@ function detectPitch(buffer: Float32Array, sampleRate: number): number {
     }
   }
 
-  // A periodic voiced signal has high autocorrelation (typically well above 0.55 at its pitch period)
-  if (bestCorrelation > 0.62 && bestLag !== -1) {
+  // A periodic voiced signal has high autocorrelation (typically well above 0.6 at its pitch period)
+  if (bestCorrelation > 0.65 && bestLag !== -1) {
     return sampleRate / bestLag;
   }
   return -1;
@@ -337,26 +337,28 @@ export function useLiveTranslator() {
                 const pitch = detectPitch(channelData, 16000);
                 if (pitch > 0) {
                   recentPitchesRef.current.push(pitch);
-                  if (recentPitchesRef.current.length > 25) {
+                  // Larger window for better stability
+                  if (recentPitchesRef.current.length > 45) {
                     recentPitchesRef.current.shift();
                   }
 
-                  if (recentPitchesRef.current.length >= 8) {
-                    const validPitches = recentPitchesRef.current.filter(p => p >= 70 && p <= 320);
-                    if (validPitches.length >= 6) {
+                  if (recentPitchesRef.current.length >= 15) {
+                    const validPitches = recentPitchesRef.current.filter(p => p >= 75 && p <= 320);
+                    if (validPitches.length >= 10) {
                       const sorted = [...validPitches].sort((a, b) => a - b);
                       const median = sorted[Math.floor(sorted.length / 2)];
 
                       let detected: 'male' | 'female' | null = null;
-                      if (median < 145) {
+                      // Authoritative boundaries with a small hysteresis buffer
+                      if (median < 155) {
                         detected = 'male';
-                      } else if (median > 165) {
+                      } else if (median > 175) {
                         detected = 'female';
                       }
 
                       if (detected && detected !== clientDetectedGenderRef.current) {
                         clientDetectedGenderRef.current = detected;
-                        console.log(`[Client Pitch Tracker] Detected voice pitch (median: ${median.toFixed(1)}Hz) => switching interpreter voice to ${detected.toUpperCase()}`);
+                        console.log(`[Client Pitch Tracker] Stable Consensus Reached (median: ${median.toFixed(1)}Hz) => Identified speaker as ${detected.toUpperCase()}`);
                         ws.send(JSON.stringify({
                           type: 'detected_gender',
                           gender: detected
