@@ -479,8 +479,8 @@ export function useLiveTranslator() {
       };
 
       ws.onerror = () => {
-        const isVercelHost = window.location.hostname.includes('vercel.app');
-        if (isVercelHost) {
+        const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        if (!isLocalhost) {
           setError(
             "WebSocket connection failed. Vercel's serverless system does not support active WebSocket connections. " +
             "Please configure your persistent Backend WebSocket URL under Settings in the sidebar."
